@@ -156,6 +156,7 @@ export function useChatController({
   const copyTimerRef = useRef<number | null>(null)
   const streamResolverRef = useRef<(() => void) | null>(null)
   const streamOutcomeRef = useRef<'complete' | 'stopped'>('complete')
+  const profileRef = useRef<UserProfile | null>(profile)
 
   const userId = profile?.id ?? null
 
@@ -174,6 +175,10 @@ export function useChatController({
     snapshot.stream.phase === 'preparing-assistant' ||
     snapshot.stream.phase === 'streaming' ||
     snapshot.stream.phase === 'stopping'
+
+  useEffect(() => {
+    profileRef.current = profile
+  }, [profile])
 
   useEffect(() => {
     let disposed = false
@@ -239,11 +244,24 @@ export function useChatController({
   }, [userId])
 
   async function persistBillingProfile(nextProfile: UserProfile) {
-    if (!profile || !hasBillingChanges(profile, nextProfile)) {
+    const currentProfile = profileRef.current
+
+    if (!currentProfile || !hasBillingChanges(currentProfile, nextProfile)) {
       return
     }
 
-    await updateProfile(getBillingPatch(nextProfile))
+    profileRef.current = nextProfile
+
+    try {
+      const persistedProfile = await updateProfile(getBillingPatch(nextProfile))
+
+      if (persistedProfile) {
+        profileRef.current = persistedProfile
+      }
+    } catch (error) {
+      profileRef.current = currentProfile
+      throw error
+    }
   }
 
   async function ensureConversationLoaded(conversationId: string) {
@@ -540,7 +558,7 @@ export function useChatController({
           streamResolverRef.current = null
 
           if (userId) {
-            void refreshConversations(userId, conversationId)
+            void refreshConversations(userId)
           }
 
           resolve()
@@ -636,7 +654,9 @@ export function useChatController({
     attachments: MessageAttachment[] = [],
     requestAttachments?: PreparedMessageAttachments,
   ) {
-    if (!profile || !userId) {
+    const currentProfile = profileRef.current
+
+    if (!currentProfile || !userId) {
       return false
     }
 
@@ -647,9 +667,9 @@ export function useChatController({
       return false
     }
 
-    const quotaCheck = checkQuotaBeforeSendForProfile(profile)
+    const quotaCheck = checkQuotaBeforeSendForProfile(currentProfile)
 
-    if (hasBillingChanges(profile, quotaCheck.profile)) {
+    if (hasBillingChanges(currentProfile, quotaCheck.profile)) {
       await persistBillingProfile(quotaCheck.profile)
     }
 
@@ -847,7 +867,9 @@ export function useChatController({
   async function regenerateMessage(messageId: string) {
     const conversationId = snapshot.activeConversationId
 
-    if (!conversationId || isBusy || !userId || !profile) {
+    const currentProfile = profileRef.current
+
+    if (!conversationId || isBusy || !userId || !currentProfile) {
       return
     }
 
@@ -870,9 +892,9 @@ export function useChatController({
     }
 
     const requestAttachments = prepareMessageAttachments(userMessage.attachments)
-    const quotaCheck = checkQuotaBeforeSendForProfile(profile)
+    const quotaCheck = checkQuotaBeforeSendForProfile(currentProfile)
 
-    if (hasBillingChanges(profile, quotaCheck.profile)) {
+    if (hasBillingChanges(currentProfile, quotaCheck.profile)) {
       await persistBillingProfile(quotaCheck.profile)
     }
 
