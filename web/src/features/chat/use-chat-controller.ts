@@ -4,6 +4,7 @@ import {
   checkQuotaBeforeSendForProfile,
   consumeCreditAfterSuccessForProfile,
 } from '../billing/billing-service'
+import { resolveSubscriptionExpiry } from '../billing/billing-rules'
 import { recordUsageLog } from '../usage/usage-service'
 import { prepareMessageAttachments } from '../../lib/ai/prepare-chat-attachments'
 import type { UserProfile, UserProfilePatch } from '../../types/auth'
@@ -588,6 +589,49 @@ export function useChatController({
     return assistantMessage
   }
 
+  async function finalizeSuccessfulGeneration(params: {
+    assistantMessageId: string
+    conversationId: string
+    conversationScenarioId: string
+    inputContent: string
+    profileForCharge: UserProfile
+    requestAttachments?: PreparedMessageAttachments
+    streamResult: StreamResult
+    userMessageId: string
+  }) {
+    const {
+      assistantMessageId,
+      conversationId,
+      conversationScenarioId,
+      inputContent,
+      profileForCharge,
+      requestAttachments,
+      streamResult,
+      userMessageId,
+    } = params
+
+    const quotaProfile = resolveSubscriptionExpiry(profileForCharge).profile
+    const creditCost = quotaProfile.subscription_plan === 'unlimited' ? 0 : 1
+
+    await recordUsageLog({
+      assistant_message_id: assistantMessageId,
+      conversation_id: conversationId,
+      credit_cost: creditCost,
+      input_tokens: estimateTokenCount(inputContent, requestAttachments?.extracted_text),
+      model_name: streamResult.modelName,
+      output_tokens: streamResult.outputTokens,
+      scenario_id: conversationScenarioId,
+      user_id: userId!,
+      user_message_id: userMessageId,
+    })
+
+    const chargeResult = consumeCreditAfterSuccessForProfile(quotaProfile, creditCost)
+
+    if (hasBillingChanges(quotaProfile, chargeResult.profile)) {
+      await persistBillingProfile(chargeResult.profile)
+    }
+  }
+
   async function sendMessage(
     attachments: MessageAttachment[] = [],
     requestAttachments?: PreparedMessageAttachments,
@@ -687,31 +731,16 @@ export function useChatController({
         return accepted
       }
 
-      const creditCost =
-        quotaCheck.profile.subscription_plan === 'unlimited'
-          ? 0
-          : quotaCheck.creditCost
-
-      await recordUsageLog({
-        assistant_message_id: assistantDraft.id,
-        conversation_id: conversationId,
-        credit_cost: creditCost,
-        input_tokens: estimateTokenCount(content, requestAttachments?.extracted_text),
-        model_name: streamResult.modelName,
-        output_tokens: streamResult.outputTokens,
-        scenario_id: conversationScenarioId,
-        user_id: userId,
-        user_message_id: userMessage.id,
+      await finalizeSuccessfulGeneration({
+        assistantMessageId: assistantDraft.id,
+        conversationId,
+        conversationScenarioId,
+        inputContent: content,
+        profileForCharge: quotaCheck.profile,
+        requestAttachments,
+        streamResult,
+        userMessageId: userMessage.id,
       })
-
-      const chargeResult = consumeCreditAfterSuccessForProfile(
-        quotaCheck.profile,
-        quotaCheck.creditCost,
-      )
-
-      if (hasBillingChanges(quotaCheck.profile, chargeResult.profile)) {
-        await persistBillingProfile(chargeResult.profile)
-      }
 
       return accepted
     } catch (error) {
@@ -818,7 +847,7 @@ export function useChatController({
   async function regenerateMessage(messageId: string) {
     const conversationId = snapshot.activeConversationId
 
-    if (!conversationId || isBusy || !userId) {
+    if (!conversationId || isBusy || !userId || !profile) {
       return
     }
 
@@ -840,18 +869,68 @@ export function useChatController({
       return
     }
 
-    const assistantDraft = await createAssistantDraft(
-      conversationId,
-      userMessage.id,
-      messageId,
-    )
-    await runAssistantStream(
-      conversationId,
-      assistantDraft.id,
-      userMessage.content,
-      prepareMessageAttachments(userMessage.attachments),
-      messageId,
-    )
+    const requestAttachments = prepareMessageAttachments(userMessage.attachments)
+    const quotaCheck = checkQuotaBeforeSendForProfile(profile)
+
+    if (hasBillingChanges(profile, quotaCheck.profile)) {
+      await persistBillingProfile(quotaCheck.profile)
+    }
+
+    if (!quotaCheck.allowed) {
+      setSnapshot((currentSnapshot) => ({
+        ...currentSnapshot,
+        stream: {
+          ...initialStreamState,
+          phase: 'error',
+          conversationId,
+          error: quotaCheck.reason,
+        },
+      }))
+      return
+    }
+
+    try {
+      const assistantDraft = await createAssistantDraft(
+        conversationId,
+        userMessage.id,
+        messageId,
+      )
+      const streamResult = await runAssistantStream(
+        conversationId,
+        assistantDraft.id,
+        userMessage.content,
+        requestAttachments,
+        messageId,
+      )
+
+      if (!streamResult.completed) {
+        return
+      }
+
+      await finalizeSuccessfulGeneration({
+        assistantMessageId: assistantDraft.id,
+        conversationId,
+        conversationScenarioId: activeConversation?.scenario_id ?? scenarioId,
+        inputContent: userMessage.content,
+        profileForCharge: quotaCheck.profile,
+        requestAttachments,
+        streamResult,
+        userMessageId: userMessage.id,
+      })
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to regenerate response.'
+
+      setSnapshot((currentSnapshot) => ({
+        ...currentSnapshot,
+        stream: {
+          ...initialStreamState,
+          phase: 'error',
+          conversationId,
+          error: message,
+        },
+      }))
+    }
   }
 
   return {
