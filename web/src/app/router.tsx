@@ -8,6 +8,7 @@ import {
 import { ProtectedLayout } from '../components/layout/protected-layout'
 import { useAuth } from '../features/auth/use-auth'
 import { AuthPage } from '../pages/auth/auth-page'
+import { PasswordResetPage } from '../pages/auth/password-reset-page'
 import { ChatPage } from '../pages/chat/chat-page'
 import { PricingPage } from '../pages/pricing/pricing-page'
 import { SettingsPage } from '../pages/settings/settings-page'
@@ -78,6 +79,10 @@ const router = createBrowserRouter([
   {
     path: '/auth',
     element: <AuthRoute />,
+  },
+  {
+    path: '/auth/reset-password',
+    element: <PasswordResetPage />,
   },
   {
     path: '/app',

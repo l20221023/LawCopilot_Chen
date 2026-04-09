@@ -2,6 +2,7 @@ import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 import type {
   EmailPasswordCredentials,
+  PasswordResetRequestResult,
   SignUpCredentials,
   SignUpResult,
 } from '../../types/auth'
@@ -77,6 +78,35 @@ export async function signUpWithEmail(
 export async function signOutUser() {
   const client = getSupabaseClient()
   const { error } = await client.auth.signOut()
+
+  if (error) {
+    throw error
+  }
+}
+
+export async function requestPasswordReset(
+  email: string,
+  redirectTo?: string,
+): Promise<PasswordResetRequestResult> {
+  const client = getSupabaseClient()
+  const { error } = await client.auth.resetPasswordForEmail(email, {
+    redirectTo,
+  })
+
+  if (error) {
+    throw error
+  }
+
+  return {
+    email,
+  }
+}
+
+export async function updateCurrentUserPassword(password: string) {
+  const client = getSupabaseClient()
+  const { error } = await client.auth.updateUser({
+    password,
+  })
 
   if (error) {
     throw error

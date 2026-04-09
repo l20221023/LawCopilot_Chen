@@ -1,6 +1,6 @@
 import { LockKeyhole, Mail, ShieldCheck, UserRound } from 'lucide-react'
 import { useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 
 import { SectionCard } from '../../components/common/section-card'
 import { useAuth } from '../../features/auth/use-auth'
@@ -30,15 +30,22 @@ function getFriendlyAuthError(error: unknown) {
     return '认证请求过于频繁，请稍后再试。'
   }
 
+  if (message.includes('For security purposes')) {
+    return '为了安全，短时间内无法重复发送邮件，请稍后再试。'
+  }
+
   return message
 }
 
 export function AuthPage() {
-  const { isAuthenticated, loading, signIn, signUp } = useAuth()
+  const { isAuthenticated, loading, requestPasswordReset, signIn, signUp } =
+    useAuth()
   const [mode, setMode] = useState<AuthMode>('sign-in')
   const [nickname, setNickname] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [resetEmail, setResetEmail] = useState('')
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -104,6 +111,40 @@ export function AuthPage() {
     }
   }
 
+  async function handlePasswordResetRequest(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault()
+    setErrorMessage(null)
+    setSuccessMessage(null)
+
+    const normalizedEmail = resetEmail.trim()
+
+    if (!normalizedEmail) {
+      setErrorMessage('请输入用于接收重置邮件的邮箱。')
+      return
+    }
+
+    setSubmitting(true)
+
+    try {
+      const redirectTo =
+        typeof window === 'undefined'
+          ? undefined
+          : `${window.location.origin}/auth/reset-password`
+
+      await requestPasswordReset(normalizedEmail, redirectTo)
+      setSuccessMessage(
+        '重置密码邮件已发送。请点击邮件中的链接进入专用的重置密码页面。',
+      )
+      setShowForgotPassword(false)
+    } catch (error) {
+      setErrorMessage(getFriendlyAuthError(error))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[1320px] items-center px-4 py-8 md:px-6">
       <div className="grid w-full gap-6 lg:grid-cols-[minmax(0,1.12fr)_440px]">
@@ -118,9 +159,8 @@ export function AuthPage() {
             <div className="max-w-3xl space-y-5">
               <h1 className="display-title">LawCopilot</h1>
               <p className="max-w-2xl text-base leading-8 muted-copy md:text-lg">
-                Sign in with your email account to enter the protected workspace.
-                The auth layer now reads Supabase sessions and loads account data
-                from the user profile table.
+                使用邮箱密码进入工作台。认证由 Supabase Auth 处理，业务资料从
+                public.users 读取。
               </p>
             </div>
 
@@ -129,7 +169,7 @@ export function AuthPage() {
                 <SectionCard
                   key={item}
                   title={item}
-                  description="Readonly for this session. Session 6 can extend the account flows on top of this foundation."
+                  description="The current auth layer is ready for sign-in, sign-up, and password recovery testing."
                 >
                   <div className="mono-label text-[color:var(--accent)]">
                     Ready
@@ -174,9 +214,30 @@ export function AuthPage() {
             </h2>
             <p className="text-sm leading-7 muted-copy">
               {mode === 'sign-in'
-                ? '使用 Supabase Auth 登录并恢复浏览器中的持久化会话。'
-                : '注册后会自动尝试读取 public.users 中的资料数据。'}
+                ? '使用 Supabase Auth 登录并恢复浏览器中的持久会话。'
+                : '注册后会自动尝试读取 public.users 中的扩展资料。'}
             </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <button
+              type="button"
+              onClick={() => {
+                setShowForgotPassword((current) => !current)
+                setErrorMessage(null)
+                setSuccessMessage(null)
+                setResetEmail(email.trim())
+              }}
+              className="font-medium text-[color:var(--accent)] transition hover:text-[color:var(--accent-strong)]"
+            >
+              {showForgotPassword ? '收起重置入口' : '忘记密码？'}
+            </button>
+            <Link
+              to="/auth/reset-password"
+              className="font-medium text-[color:var(--text-soft)] transition hover:text-[color:var(--text)]"
+            >
+              我已经拿到恢复链接
+            </Link>
           </div>
 
           {!isSupabaseConfigured ? (
@@ -195,6 +256,48 @@ export function AuthPage() {
             <div className="rounded-[18px] border border-emerald-200 bg-emerald-50 p-4 text-sm leading-7 text-emerald-700">
               {successMessage}
             </div>
+          ) : null}
+
+          {showForgotPassword ? (
+            <form
+              className="space-y-4 rounded-[22px] border border-[color:var(--border)] bg-white/70 p-4"
+              onSubmit={handlePasswordResetRequest}
+            >
+              <div className="space-y-2">
+                <h3 className="text-base font-semibold text-[color:var(--text)]">
+                  发送重置密码邮件
+                </h3>
+                <p className="text-sm leading-6 muted-copy">
+                  邮件中的链接会跳转到 `/auth/reset-password`，不再直接进入工作台。
+                </p>
+              </div>
+
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-[color:var(--text)]">
+                  恢复邮箱
+                </span>
+                <div className="flex items-center gap-3 rounded-[18px] border border-[color:var(--border)] bg-white/80 px-4 py-3">
+                  <Mail className="h-4 w-4 text-[color:var(--text-soft)]" />
+                  <input
+                    type="email"
+                    value={resetEmail}
+                    onChange={(event) => setResetEmail(event.target.value)}
+                    placeholder="lawyer@example.com"
+                    autoComplete="email"
+                    disabled={submitting || loading || !isSupabaseConfigured}
+                    className="w-full border-0 bg-transparent p-0 text-sm outline-none"
+                  />
+                </div>
+              </label>
+
+              <button
+                type="submit"
+                disabled={submitting || loading || !isSupabaseConfigured}
+                className="inline-flex w-full items-center justify-center rounded-full bg-[color:var(--text)] px-5 py-3 text-sm font-medium text-white transition enabled:hover:bg-[color:var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {submitting ? '正在发送...' : '发送恢复邮件'}
+              </button>
+            </form>
           ) : null}
 
           <form className="space-y-4" onSubmit={handleSubmit}>

@@ -4,6 +4,7 @@ import type {
   AuthStatus,
   AuthUser,
   EmailPasswordCredentials,
+  PasswordResetRequestResult,
   SignUpCredentials,
   SignUpResult,
   UserProfile,
@@ -19,6 +20,11 @@ type AuthContextValue = {
   profileError: string | null
   refreshProfile: () => Promise<UserProfile | null>
   updateProfile: (patch: UserProfilePatch) => Promise<UserProfile | null>
+  requestPasswordReset: (
+    email: string,
+    redirectTo?: string,
+  ) => Promise<PasswordResetRequestResult>
+  updatePassword: (password: string) => Promise<void>
   signIn: (credentials: EmailPasswordCredentials) => Promise<void>
   signUp: (credentials: SignUpCredentials) => Promise<SignUpResult>
   signOut: () => Promise<void>

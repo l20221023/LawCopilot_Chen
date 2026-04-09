@@ -21,6 +21,10 @@ export type SignUpResult = {
   needsEmailConfirmation: boolean
 }
 
+export type PasswordResetRequestResult = {
+  email: string
+}
+
 export type AuthServiceErrorCode =
   | 'SUPABASE_NOT_CONFIGURED'
   | 'PROFILE_NOT_FOUND'
