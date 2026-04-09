@@ -1,9 +1,24 @@
 const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
+const DEFAULT_MAX_COMPLETION_TOKENS = 2048
 
 function sendJson(response, statusCode, payload) {
   response.statusCode = statusCode
   response.setHeader('Content-Type', 'application/json; charset=utf-8')
   response.end(JSON.stringify(payload))
+}
+
+function parsePositiveInteger(value, fallbackValue) {
+  if (typeof value !== 'string' || !value.trim()) {
+    return fallbackValue
+  }
+
+  const parsedValue = Number.parseInt(value, 10)
+
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+    return fallbackValue
+  }
+
+  return parsedValue
 }
 
 function getRequestBody(request) {
@@ -29,6 +44,10 @@ export default async function handler(request, response) {
 
   const apiKey = process.env.OPENROUTER_API_KEY
   const model = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash'
+  const maxCompletionTokens = parsePositiveInteger(
+    process.env.OPENROUTER_MAX_COMPLETION_TOKENS,
+    DEFAULT_MAX_COMPLETION_TOKENS,
+  )
 
   if (!apiKey) {
     sendJson(response, 500, {
@@ -74,6 +93,7 @@ export default async function handler(request, response) {
         model,
         messages: payload.messages,
         stream: true,
+        max_completion_tokens: maxCompletionTokens,
         stream_options: {
           include_usage: true,
         },
@@ -88,9 +108,22 @@ export default async function handler(request, response) {
 
   if (!upstreamResponse.ok || !upstreamResponse.body) {
     const errorText = await upstreamResponse.text()
+    let message = errorText || 'OpenRouter request failed.'
+    let details = null
+
+    try {
+      details = JSON.parse(errorText)
+      message =
+        details?.error?.message ||
+        details?.message ||
+        message
+    } catch {
+      details = null
+    }
 
     sendJson(response, upstreamResponse.status || 502, {
-      error: errorText || 'OpenRouter request failed.',
+      error: message,
+      details,
     })
     return
   }
