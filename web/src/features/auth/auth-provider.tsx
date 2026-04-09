@@ -3,7 +3,15 @@ import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { resolveSubscriptionExpiry } from '../billing/billing-rules'
-import { getCurrentSession, signInWithEmail, signOutUser, signUpWithEmail, subscribeToAuthStateChange } from '../../lib/supabase/auth'
+import {
+  getCurrentSession,
+  requestPasswordReset,
+  signInWithEmail,
+  signOutUser,
+  signUpWithEmail,
+  subscribeToAuthStateChange,
+  updateCurrentUserPassword,
+} from '../../lib/supabase/auth'
 import { isSupabaseConfigured } from '../../lib/supabase/client'
 import { getErrorMessage } from '../../lib/supabase/errors'
 import { getUserProfile, updateUserProfile } from '../../lib/supabase/profiles'
@@ -153,8 +161,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
         return null
       }
 
-      setLoading(true)
-
       try {
         const nextProfile = await updateUserProfile(authUser.id, patch, authUser.email)
         const normalizedProfile = resolveSubscriptionExpiry(nextProfile).profile
@@ -165,8 +171,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
       } catch (error) {
         setProfileError(getErrorMessage(error))
         throw error
-      } finally {
-        setLoading(false)
       }
     },
     [authUser],
@@ -217,6 +221,29 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }, [applySession])
 
+  const requestPasswordResetEmail = useCallback<
+    AuthContextValue['requestPasswordReset']
+  >(async (email, redirectTo) => {
+    return requestPasswordReset(email, redirectTo)
+  }, [])
+
+  const updatePassword = useCallback<AuthContextValue['updatePassword']>(
+    async (password) => {
+      setLoading(true)
+
+      try {
+        await updateCurrentUserPassword(password)
+
+        if (authUser) {
+          await loadProfile(authUser)
+        }
+      } finally {
+        setLoading(false)
+      }
+    },
+    [authUser, loadProfile],
+  )
+
   const value = useMemo<AuthContextValue>(() => {
     const isAuthenticated = Boolean(authUser)
 
@@ -229,6 +256,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       profileError,
       refreshProfile,
       updateProfile,
+      requestPasswordReset: requestPasswordResetEmail,
+      updatePassword,
       signIn,
       signUp,
       signOut,
@@ -236,7 +265,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       enterPreview: () => {},
       exitPreview: signOut,
     }
-  }, [authUser, loading, profile, profileError, refreshProfile, signIn, signOut, signUp, updateProfile])
+  }, [authUser, loading, profile, profileError, refreshProfile, requestPasswordResetEmail, signIn, signOut, signUp, updatePassword, updateProfile])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

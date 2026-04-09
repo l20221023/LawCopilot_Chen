@@ -89,7 +89,7 @@ export function ProtectedLayout() {
   return (
     <div className="min-h-screen px-4 py-4 md:px-6 md:py-6">
       <div className="app-shell-card mx-auto grid min-h-[calc(100vh-2rem)] w-full max-w-[1480px] gap-6 overflow-hidden p-4 md:grid-cols-[280px_minmax(0,1fr)] md:p-6">
-        <aside className="flex flex-col justify-between rounded-[24px] bg-[color:var(--surface-muted)] p-4 md:p-5">
+        <aside className="top-6 flex h-fit flex-col justify-between rounded-[24px] bg-[color:var(--surface-muted)] p-4 md:sticky md:max-h-[calc(100vh-5rem)] md:p-5">
           <div className="space-y-6">
             <div className="space-y-4">
               <span className="eyebrow">
@@ -150,7 +150,7 @@ export function ProtectedLayout() {
           </div>
         </aside>
 
-        <main className="flex min-w-0 flex-col gap-6 overflow-auto rounded-[24px] bg-[color:var(--background-strong)] p-4 md:p-6">
+        <main className="flex min-w-0 flex-col gap-6 overflow-auto rounded-[24px] bg-[color:var(--background-strong)] p-4 md:max-h-[calc(100vh-5rem)] md:p-6">
           <Outlet />
         </main>
       </div>

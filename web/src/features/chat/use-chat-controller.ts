@@ -53,7 +53,7 @@ type UseChatControllerResult = {
   sendMessage(
     attachments?: MessageAttachment[],
     requestAttachments?: PreparedMessageAttachments,
-  ): Promise<void>
+  ): Promise<boolean>
   stopGeneration(): Promise<void>
   copyMessage(content: string, messageId: string): Promise<void>
   regenerateMessage(messageId: string): Promise<void>
@@ -593,14 +593,14 @@ export function useChatController({
     requestAttachments?: PreparedMessageAttachments,
   ) {
     if (!profile || !userId) {
-      return
+      return false
     }
 
     const content = snapshot.composer.value.trim()
     const hasInput = Boolean(content) || attachments.length > 0
 
     if (!hasInput || isBusy) {
-      return
+      return false
     }
 
     const quotaCheck = checkQuotaBeforeSendForProfile(profile)
@@ -619,11 +619,12 @@ export function useChatController({
           error: quotaCheck.reason,
         },
       }))
-      return
+      return false
     }
 
     let conversationId = snapshot.activeConversationId
     let conversationScenarioId = activeConversation?.scenario_id ?? scenarioId
+    let accepted = false
 
     if (!conversationId) {
       const fallbackTitle =
@@ -671,6 +672,7 @@ export function useChatController({
         content,
         attachments,
       })
+      accepted = true
 
       await appendMessageToState(conversationId, userMessage)
       const assistantDraft = await createAssistantDraft(conversationId, userMessage.id)
@@ -682,7 +684,7 @@ export function useChatController({
       )
 
       if (!streamResult.completed) {
-        return
+        return accepted
       }
 
       const creditCost =
@@ -710,6 +712,8 @@ export function useChatController({
       if (hasBillingChanges(quotaCheck.profile, chargeResult.profile)) {
         await persistBillingProfile(chargeResult.profile)
       }
+
+      return accepted
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to complete send flow.'
@@ -723,6 +727,8 @@ export function useChatController({
           error: message,
         },
       }))
+
+      return accepted
     }
   }
 

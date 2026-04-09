@@ -64,12 +64,14 @@ export function ChatPage() {
   async function handleSend() {
     const submission = composer.captureSubmission(chat.composerValue)
 
-    await chat.sendMessage(
+    const accepted = await chat.sendMessage(
       composer.messageAttachments,
       submission.request_attachments,
     )
 
-    composer.clearComposer()
+    if (accepted) {
+      composer.clearComposer()
+    }
   }
 
   if (!profile) {

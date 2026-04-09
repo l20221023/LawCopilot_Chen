@@ -1,3 +1,6 @@
+import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
+
 import type {
   ScenarioDefinition,
   ScenarioSwitchDraft,
@@ -19,11 +22,26 @@ export function ScenarioSwitchConfirmDialog({
   onCancel,
   onConfirm,
 }: ScenarioSwitchConfirmDialogProps) {
+  const isOpen = Boolean(switchDraft && nextScenario)
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [isOpen])
+
   if (!switchDraft || !nextScenario) {
     return null
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(24,33,38,0.42)] px-4 py-6">
       <div className="w-full max-w-lg rounded-[28px] border border-[color:var(--border)] bg-[color:var(--background-strong)] p-6 shadow-[0_24px_80px_rgba(28,42,48,0.24)]">
         <div className="space-y-4">
@@ -99,6 +117,7 @@ export function ScenarioSwitchConfirmDialog({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

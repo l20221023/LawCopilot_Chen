@@ -6,6 +6,7 @@ import type {
 
 const USAGE_STORAGE_KEY = 'lawcopilot-usage-logs'
 const listeners = new Set<() => void>()
+const usageSnapshotCache = new Map<string, UsageLog[]>()
 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
@@ -16,6 +17,7 @@ if (typeof window !== 'undefined') {
 }
 
 function emitUsageChange() {
+  usageSnapshotCache.clear()
   listeners.forEach((listener) => listener())
 }
 
@@ -69,7 +71,16 @@ export function listUsageLogs(limit = 10, userId?: string | null) {
 }
 
 export function readUsageLogsSnapshot(userId?: string | null) {
-  return listUsageLogs(10, userId)
+  const cacheKey = userId ?? '__all__'
+  const cachedLogs = usageSnapshotCache.get(cacheKey)
+
+  if (cachedLogs) {
+    return cachedLogs
+  }
+
+  const snapshot = listUsageLogs(10, userId)
+  usageSnapshotCache.set(cacheKey, snapshot)
+  return snapshot
 }
 
 export async function recordUsageLog(input: UsageRecordInput) {

@@ -45,6 +45,11 @@ export function ChatComposer({
   const inputId = useId()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const sendDisabled = (!value.trim() && attachments.length === 0) || isBusy
+  const isProcessing =
+    streamPhase === 'submitting' ||
+    streamPhase === 'preparing-assistant' ||
+    streamPhase === 'streaming' ||
+    streamPhase === 'stopping'
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? [])
@@ -158,7 +163,7 @@ export function ChatComposer({
               disabled={sendDisabled}
             >
               <SendHorizontal className="h-4 w-4" />
-              {streamPhase === 'idle' ? '发送' : '处理中'}
+              {isProcessing ? '处理中' : '发送'}
             </button>
           </div>
         </div>
