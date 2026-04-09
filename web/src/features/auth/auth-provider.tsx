@@ -1,6 +1,6 @@
 import type { Session } from '@supabase/supabase-js'
 import type { PropsWithChildren } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { resolveSubscriptionExpiry } from '../billing/billing-rules'
 import {
@@ -34,6 +34,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [profileError, setProfileError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const authUserIdRef = useRef<string | null>(null)
+  const hasProfileRef = useRef(false)
+
+  useEffect(() => {
+    authUserIdRef.current = authUser?.id ?? null
+    hasProfileRef.current = Boolean(profile)
+  }, [authUser, profile])
 
   const loadProfile = useCallback(async (user: AuthUser) => {
     try {
@@ -129,8 +136,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
         const shouldSkipBlockingRefresh =
           (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') &&
-          session?.user?.id === authUser?.id &&
-          Boolean(profile)
+          session?.user?.id === authUserIdRef.current &&
+          hasProfileRef.current
 
         if (!shouldSkipBlockingRefresh) {
           setLoading(true)
@@ -154,7 +161,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       cancelled = true
       subscription.unsubscribe()
     }
-  }, [applySession, authUser?.id, profile])
+  }, [applySession])
 
   const refreshProfile = useCallback(async () => {
     if (!authUser) {
