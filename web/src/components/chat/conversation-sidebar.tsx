@@ -6,9 +6,12 @@ type ConversationSidebarProps = {
   activeConversationId: string | null
   conversations: Conversation[]
   isBusy: boolean
-  onCreateConversation(): Promise<void>
-  onDeleteConversation(conversationId: string): Promise<void>
+  onCreateConversation(): Promise<void | string | null>
+  onDeleteConversation(conversationId: string): Promise<void | string | null>
   onSelectConversation(conversationId: string): Promise<void>
+  createLabel?: string
+  description?: string
+  title?: string
 }
 
 export function ConversationSidebar({
@@ -18,6 +21,9 @@ export function ConversationSidebar({
   onCreateConversation,
   onDeleteConversation,
   onSelectConversation,
+  createLabel = 'New conversation',
+  description = 'Continue an existing workspace or start a new one.',
+  title = 'Conversations',
 }: ConversationSidebarProps) {
   return (
     <aside className="section-card flex min-h-[640px] flex-col p-4 md:p-5">
@@ -26,11 +32,9 @@ export function ConversationSidebar({
           <span className="eyebrow">Chat</span>
           <div>
             <h2 className="text-2xl font-semibold tracking-tight text-[color:var(--text)]">
-              会话列表
+              {title}
             </h2>
-            <p className="mt-2 text-sm leading-6 muted-copy">
-              当前使用本地 mock 数据，后续可直接替换为 Supabase 会话查询。
-            </p>
+            <p className="mt-2 text-sm leading-6 muted-copy">{description}</p>
           </div>
         </div>
 
@@ -41,7 +45,7 @@ export function ConversationSidebar({
           disabled={isBusy}
         >
           <Plus className="h-4 w-4" />
-          新建会话
+          {createLabel}
         </button>
       </div>
 
@@ -71,7 +75,7 @@ export function ConversationSidebar({
                         {conversation.title}
                       </div>
                       <p className="mt-2 max-h-12 overflow-hidden text-sm leading-6 muted-copy">
-                        {conversation.last_message_preview ?? '暂无消息，等待第一条用户输入。'}
+                        {conversation.last_message_preview ?? 'No messages yet.'}
                       </p>
                     </div>
                     <span className="rounded-full border border-[color:var(--border)] bg-white/80 p-2 text-[color:var(--text-soft)]">
@@ -99,7 +103,7 @@ export function ConversationSidebar({
                     disabled={isBusy}
                   >
                     <Trash2 className="h-4 w-4" />
-                    删除
+                    Delete
                   </button>
                 </div>
               </article>
@@ -108,10 +112,10 @@ export function ConversationSidebar({
         ) : (
           <div className="rounded-[20px] border border-dashed border-[color:var(--border-strong)] bg-white/70 p-5">
             <div className="text-base font-medium text-[color:var(--text)]">
-              还没有会话
+              No conversations yet.
             </div>
             <p className="mt-2 text-sm leading-6 muted-copy">
-              点击“新建会话”后即可开始测试聊天主链路。
+              Start a new workspace from the button above.
             </p>
           </div>
         )}

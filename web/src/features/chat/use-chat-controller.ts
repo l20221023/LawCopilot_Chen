@@ -20,7 +20,7 @@ import type {
   MessageAttachment,
   PreparedMessageAttachments,
 } from '../../types/chat'
-import { mockChatService } from './mock-chat-service'
+import { chatService } from './runtime-chat-service'
 
 const FALLBACK_MODEL_NAME = 'openrouter'
 
@@ -50,8 +50,8 @@ type UseChatControllerResult = {
   composerValue: string
   stream: ChatStreamState
   snapshot: ChatStateSnapshot
-  createConversation(scenarioId?: string): Promise<void>
-  deleteConversation(conversationId: string): Promise<void>
+  createConversation(scenarioId?: string): Promise<string | null>
+  deleteConversation(conversationId: string): Promise<string | null>
   selectConversation(conversationId: string): Promise<void>
   updateComposer(value: string): void
   sendMessage(
@@ -158,7 +158,7 @@ export function useChatController({
 
       setIsLoading(true)
 
-      const conversations = await mockChatService.listConversations({
+      const conversations = await chatService.listConversations({
         userId,
       })
 
@@ -171,7 +171,7 @@ export function useChatController({
 
       if (activeConversationId) {
         messagesByConversation[activeConversationId] =
-          await mockChatService.listMessages({
+          await chatService.listMessages({
             conversationId: activeConversationId,
           })
       }
@@ -232,7 +232,7 @@ export function useChatController({
       return cachedMessages
     }
 
-    const messagesForConversation = await mockChatService.listMessages({
+    const messagesForConversation = await chatService.listMessages({
       conversationId,
     })
 
@@ -251,7 +251,7 @@ export function useChatController({
     ownerUserId: string,
     nextActiveConversationId?: string | null,
   ) {
-    const conversations = await mockChatService.listConversations({
+    const conversations = await chatService.listConversations({
       userId: ownerUserId,
     })
 
@@ -286,10 +286,10 @@ export function useChatController({
 
   async function createConversation(nextScenarioId = scenarioId) {
     if (!userId) {
-      return
+      return null
     }
 
-    const conversation = await mockChatService.createConversation({
+    const conversation = await chatService.createConversation({
       userId,
       scenarioId: nextScenarioId,
       title: 'New conversation',
@@ -308,18 +308,20 @@ export function useChatController({
       },
       stream: initialStreamState,
     }))
+
+    return conversation.id
   }
 
   async function deleteConversation(conversationId: string) {
     if (!userId) {
-      return
+      return null
     }
 
     if (snapshot.stream.conversationId === conversationId && isBusy) {
       await stopGeneration()
     }
 
-    await mockChatService.deleteConversation({ conversationId })
+    await chatService.deleteConversation({ conversationId })
     const conversations = await refreshConversations(userId)
     const fallbackConversationId =
       snapshot.activeConversationId === conversationId
@@ -345,6 +347,8 @@ export function useChatController({
     if (fallbackConversationId) {
       await ensureConversationLoaded(fallbackConversationId)
     }
+
+    return fallbackConversationId
   }
 
   function updateComposer(value: string) {
@@ -369,7 +373,7 @@ export function useChatController({
       return
     }
 
-    const conversations = await mockChatService.listConversations({
+    const conversations = await chatService.listConversations({
       userId,
     })
 
@@ -415,7 +419,7 @@ export function useChatController({
       },
     }))
 
-    await mockChatService.updateAssistantMessage({
+    await chatService.updateAssistantMessage({
       conversationId,
       messageId: assistantMessageId,
       patch: {
@@ -468,7 +472,7 @@ export function useChatController({
           const chunkTime = new Date().toISOString()
           const resolvedModelName = modelName ?? FALLBACK_MODEL_NAME
 
-          void mockChatService.updateAssistantMessage({
+          void chatService.updateAssistantMessage({
             conversationId,
             messageId: assistantMessageId,
             patch: {
@@ -522,7 +526,7 @@ export function useChatController({
       const finishedAt = new Date().toISOString()
       const resolvedModelName = streamResult.modelName ?? FALLBACK_MODEL_NAME
 
-      await mockChatService.updateAssistantMessage({
+      await chatService.updateAssistantMessage({
         conversationId,
         messageId: assistantMessageId,
         patch: {
@@ -593,7 +597,7 @@ export function useChatController({
         error instanceof Error ? error.message : 'Failed to stream AI response.'
       const errorTime = new Date().toISOString()
 
-      await mockChatService.updateAssistantMessage({
+      await chatService.updateAssistantMessage({
         conversationId,
         messageId: assistantMessageId,
         patch: {
@@ -662,7 +666,7 @@ export function useChatController({
       },
     }))
 
-    const assistantMessage = await mockChatService.createAssistantMessage({
+    const assistantMessage = await chatService.createAssistantMessage({
       conversationId,
       parentMessageId,
       status: 'pending',
@@ -766,7 +770,7 @@ export function useChatController({
         attachments[0]?.name ||
         requestAttachments?.attachments[0]?.name ||
         'New conversation'
-      const conversation = await mockChatService.createConversation({
+      const conversation = await chatService.createConversation({
         userId,
         scenarioId,
         title: fallbackTitle.slice(0, 32),
@@ -801,7 +805,7 @@ export function useChatController({
     }))
 
     try {
-      const userMessage = await mockChatService.createUserMessage({
+      const userMessage = await chatService.createUserMessage({
         conversationId,
         content,
         attachments,
@@ -876,7 +880,7 @@ export function useChatController({
       },
     }))
 
-    await mockChatService.updateAssistantMessage({
+    await chatService.updateAssistantMessage({
       conversationId,
       messageId: assistantMessageId,
       patch: {

@@ -2,6 +2,7 @@ import { FileText, LayoutDashboard, Settings, Wallet } from 'lucide-react'
 import { NavLink, Navigate, Outlet } from 'react-router-dom'
 
 import { useAuth } from '../../features/auth/use-auth'
+import { ChatRuntimeProvider } from '../../features/chat/chat-runtime-provider'
 
 const navigationItems = [
   {
@@ -151,7 +152,9 @@ export function ProtectedLayout() {
         </aside>
 
         <main className="flex min-w-0 flex-col gap-6 overflow-auto rounded-[24px] bg-[color:var(--background-strong)] p-4 md:max-h-[calc(100vh-5rem)] md:p-6">
-          <Outlet />
+          <ChatRuntimeProvider>
+            <Outlet />
+          </ChatRuntimeProvider>
         </main>
       </div>
     </div>

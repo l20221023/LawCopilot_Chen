@@ -3,10 +3,14 @@ import type {
   UsageLogSummary,
   UsageRecordInput,
 } from '../../types/usage'
+import { isSupabaseConfigured } from '../../lib/supabase/client'
+import {
+  createSupabaseUsageLog,
+  listSupabaseUsageLogs,
+} from '../../lib/supabase/usage'
 
 const USAGE_STORAGE_KEY = 'lawcopilot-usage-logs'
 const listeners = new Set<() => void>()
-const usageSnapshotCache = new Map<string, UsageLog[]>()
 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
@@ -17,7 +21,6 @@ if (typeof window !== 'undefined') {
 }
 
 function emitUsageChange() {
-  usageSnapshotCache.clear()
   listeners.forEach((listener) => listener())
 }
 
@@ -58,7 +61,11 @@ export function subscribeUsageLogs(listener: () => void) {
   }
 }
 
-export function listUsageLogs(limit = 10, userId?: string | null) {
+export async function listUsageLogs(limit = 10, userId?: string | null) {
+  if (isSupabaseConfigured) {
+    return listSupabaseUsageLogs(limit, userId)
+  }
+
   return readStoredUsageLogs()
     .filter((log) => !userId || log.user_id === userId)
     .slice()
@@ -70,20 +77,13 @@ export function listUsageLogs(limit = 10, userId?: string | null) {
     .slice(0, limit)
 }
 
-export function readUsageLogsSnapshot(userId?: string | null) {
-  const cacheKey = userId ?? '__all__'
-  const cachedLogs = usageSnapshotCache.get(cacheKey)
-
-  if (cachedLogs) {
-    return cachedLogs
+export async function recordUsageLog(input: UsageRecordInput) {
+  if (isSupabaseConfigured) {
+    const log = await createSupabaseUsageLog(input)
+    emitUsageChange()
+    return log
   }
 
-  const snapshot = listUsageLogs(10, userId)
-  usageSnapshotCache.set(cacheKey, snapshot)
-  return snapshot
-}
-
-export async function recordUsageLog(input: UsageRecordInput) {
   const log: UsageLog = {
     assistant_message_id: input.assistant_message_id ?? null,
     conversation_id: input.conversation_id,
@@ -104,10 +104,8 @@ export async function recordUsageLog(input: UsageRecordInput) {
   return log
 }
 
-export function getUsageSummary(userId?: string | null): UsageLogSummary {
-  return readStoredUsageLogs()
-    .filter((log) => !userId || log.user_id === userId)
-    .reduce<UsageLogSummary>(
+export function getUsageSummary(logs: UsageLog[]): UsageLogSummary {
+  return logs.reduce<UsageLogSummary>(
     (summary, log) => {
       return {
         totalCreditsConsumed: summary.totalCreditsConsumed + log.credit_cost,

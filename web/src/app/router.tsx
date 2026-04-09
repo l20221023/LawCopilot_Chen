@@ -9,7 +9,8 @@ import { ProtectedLayout } from '../components/layout/protected-layout'
 import { useAuth } from '../features/auth/use-auth'
 import { AuthPage } from '../pages/auth/auth-page'
 import { PasswordResetPage } from '../pages/auth/password-reset-page'
-import { ChatPage } from '../pages/chat/chat-page'
+import { ChatHomePage } from '../pages/chat/chat-home-page'
+import { ChatWorkspacePage } from '../pages/chat/chat-workspace-page'
 import { PricingPage } from '../pages/pricing/pricing-page'
 import { SettingsPage } from '../pages/settings/settings-page'
 
@@ -93,7 +94,11 @@ const router = createBrowserRouter([
         children: [
           {
             path: 'chat',
-            element: <ChatPage />,
+            element: <ChatHomePage />,
+          },
+          {
+            path: 'chat/:conversationId',
+            element: <ChatWorkspacePage />,
           },
           {
             path: 'pricing',
