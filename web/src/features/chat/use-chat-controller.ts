@@ -6,6 +6,10 @@ import {
 } from '../billing/billing-service'
 import { resolveSubscriptionExpiry } from '../billing/billing-rules'
 import { recordUsageLog } from '../usage/usage-service'
+import {
+  buildChatApiPayload,
+  streamChatCompletion,
+} from '../../lib/ai/openrouter-client'
 import { prepareMessageAttachments } from '../../lib/ai/prepare-chat-attachments'
 import type { UserProfile, UserProfilePatch } from '../../types/auth'
 import type {
@@ -18,8 +22,7 @@ import type {
 } from '../../types/chat'
 import { mockChatService } from './mock-chat-service'
 
-const STREAM_CHUNK_INTERVAL = 180
-const MOCK_MODEL_NAME = 'mock-lawcopilot'
+const FALLBACK_MODEL_NAME = 'openrouter'
 
 const initialStreamState: ChatStreamState = {
   phase: 'idle',
@@ -65,42 +68,6 @@ type StreamResult = {
   content: string
   modelName: string
   outputTokens: number
-}
-
-function buildMockAssistantResponse(
-  prompt: string,
-  requestAttachments?: PreparedMessageAttachments,
-) {
-  const trimmedPrompt = prompt.trim()
-  const responseBlocks = [
-    'The current assistant flow is still backed by the local mock chat service.',
-    trimmedPrompt
-      ? `Question summary: ${trimmedPrompt}`
-      : 'No plain-text prompt was supplied, only attachments.',
-  ]
-
-  if (requestAttachments && requestAttachments.attachments.length > 0) {
-    responseBlocks.push(
-      `Attachment summary: ${requestAttachments.attachments.length} attachment(s) mapped into ${requestAttachments.content_parts.length} request content part(s).`,
-    )
-
-    if (requestAttachments.extracted_text) {
-      responseBlocks.push(
-        `Extracted text preview: ${requestAttachments.extracted_text.slice(0, 140)}${
-          requestAttachments.extracted_text.length > 140 ? '...' : ''
-        }`,
-      )
-    }
-  }
-
-  responseBlocks.push(
-    'Session 6 now wires quota checks, usage logging, and post-success credit consumption around this streaming placeholder.',
-  )
-  responseBlocks.push(
-    'When the real AI endpoint is connected, the existing stream state and message model can be reused directly.',
-  )
-
-  return responseBlocks.join('\n\n')
 }
 
 function createEmptySnapshot(): ChatStateSnapshot {
@@ -152,9 +119,8 @@ export function useChatController({
   const [snapshot, setSnapshot] = useState<ChatStateSnapshot>(createEmptySnapshot)
   const [isLoading, setIsLoading] = useState(true)
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
-  const streamTimerRef = useRef<number | null>(null)
+  const streamAbortControllerRef = useRef<AbortController | null>(null)
   const copyTimerRef = useRef<number | null>(null)
-  const streamResolverRef = useRef<(() => void) | null>(null)
   const streamOutcomeRef = useRef<'complete' | 'stopped'>('complete')
   const profileRef = useRef<UserProfile | null>(profile)
 
@@ -230,16 +196,11 @@ export function useChatController({
 
     return () => {
       disposed = true
-
-      if (streamTimerRef.current) {
-        window.clearInterval(streamTimerRef.current)
-      }
+      streamAbortControllerRef.current?.abort()
 
       if (copyTimerRef.current) {
         window.clearTimeout(copyTimerRef.current)
       }
-
-      streamResolverRef.current?.()
     }
   }, [userId])
 
@@ -429,14 +390,15 @@ export function useChatController({
   async function runAssistantStream(
     conversationId: string,
     assistantMessageId: string,
-    prompt: string,
-    requestAttachments?: PreparedMessageAttachments,
+    requestMessages: ChatMessage[],
+    requestScenarioId: string,
     regenerationOf?: string,
   ): Promise<StreamResult> {
-    const response = buildMockAssistantResponse(prompt, requestAttachments)
-    const chunks = response.split(' ')
     const startedAt = new Date().toISOString()
     let currentContent = ''
+    const abortController = new AbortController()
+
+    streamAbortControllerRef.current = abortController
 
     streamOutcomeRef.current = 'complete'
 
@@ -461,7 +423,7 @@ export function useChatController({
         status: 'streaming',
         metadata: {
           finish_reason: 'placeholder',
-          model: MOCK_MODEL_NAME,
+          model: FALLBACK_MODEL_NAME,
           regeneration_of: regenerationOf ?? null,
         },
       },
@@ -480,7 +442,7 @@ export function useChatController({
                   status: 'streaming',
                   metadata: {
                     finish_reason: 'placeholder',
-                    model: MOCK_MODEL_NAME,
+                    model: FALLBACK_MODEL_NAME,
                     regeneration_of: regenerationOf ?? null,
                   },
                 }
@@ -489,88 +451,196 @@ export function useChatController({
       },
     }))
 
-    let chunkIndex = 0
-
-    await new Promise<void>((resolve) => {
-      streamResolverRef.current = resolve
-      streamTimerRef.current = window.setInterval(() => {
-        chunkIndex += 1
-        currentContent = `${chunks.slice(0, chunkIndex).join(' ')}${
-          chunkIndex < chunks.length ? ' ' : ''
-        }`
-        const chunkTime = new Date().toISOString()
-
-        void mockChatService.updateAssistantMessage({
+    try {
+      const streamResult = await streamChatCompletion({
+        conversationId,
+        messages: buildChatApiPayload({
           conversationId,
-          messageId: assistantMessageId,
-          patch: {
-            content: currentContent,
-            status: chunkIndex === chunks.length ? 'complete' : 'streaming',
-            metadata: {
-              finish_reason: chunkIndex === chunks.length ? 'complete' : 'placeholder',
-              model: MOCK_MODEL_NAME,
-              regeneration_of: regenerationOf ?? null,
+          messages: requestMessages,
+          scenarioId: requestScenarioId,
+        }).messages,
+        onEvent: ({ delta, modelName }) => {
+          if (!delta) {
+            return
+          }
+
+          currentContent += delta
+          const chunkTime = new Date().toISOString()
+          const resolvedModelName = modelName ?? FALLBACK_MODEL_NAME
+
+          void mockChatService.updateAssistantMessage({
+            conversationId,
+            messageId: assistantMessageId,
+            patch: {
+              content: currentContent,
+              status: 'streaming',
+              metadata: {
+                finish_reason: 'placeholder',
+                model: resolvedModelName,
+                regeneration_of: regenerationOf ?? null,
+              },
+              updated_at: chunkTime,
             },
-            updated_at: chunkTime,
+          })
+
+          setSnapshot((currentSnapshot) => ({
+            ...currentSnapshot,
+            messagesByConversation: {
+              ...currentSnapshot.messagesByConversation,
+              [conversationId]: (
+                currentSnapshot.messagesByConversation[conversationId] ?? []
+              ).map((message) =>
+                message.id === assistantMessageId
+                  ? {
+                      ...message,
+                      content: currentContent,
+                      status: 'streaming',
+                      updated_at: chunkTime,
+                      metadata: {
+                        finish_reason: 'placeholder',
+                        model: resolvedModelName,
+                        regeneration_of: regenerationOf ?? null,
+                      },
+                    }
+                  : message,
+              ),
+            },
+            stream: {
+              ...currentSnapshot.stream,
+              phase: 'streaming',
+              lastChunkAt: chunkTime,
+              abortable: true,
+            },
+          }))
+        },
+        scenarioId: requestScenarioId,
+        signal: abortController.signal,
+      })
+
+      streamAbortControllerRef.current = null
+
+      const finishedAt = new Date().toISOString()
+      const resolvedModelName = streamResult.modelName ?? FALLBACK_MODEL_NAME
+
+      await mockChatService.updateAssistantMessage({
+        conversationId,
+        messageId: assistantMessageId,
+        patch: {
+          content: streamResult.content,
+          status: 'complete',
+          metadata: {
+            finish_reason: 'complete',
+            model: resolvedModelName,
+            regeneration_of: regenerationOf ?? null,
           },
-        })
+          updated_at: finishedAt,
+        },
+      })
 
-        setSnapshot((currentSnapshot) => ({
-          ...currentSnapshot,
-          messagesByConversation: {
-            ...currentSnapshot.messagesByConversation,
-            [conversationId]: (
-              currentSnapshot.messagesByConversation[conversationId] ?? []
-            ).map((message) =>
-              message.id === assistantMessageId
-                ? {
-                    ...message,
-                    content: currentContent,
-                    status: chunkIndex === chunks.length ? 'complete' : 'streaming',
-                    updated_at: chunkTime,
-                    metadata: {
-                      finish_reason:
-                        chunkIndex === chunks.length ? 'complete' : 'placeholder',
-                      model: MOCK_MODEL_NAME,
-                      regeneration_of: regenerationOf ?? null,
-                    },
-                  }
-                : message,
-            ),
-          },
-          stream:
-            chunkIndex === chunks.length
-              ? initialStreamState
-              : {
-                  ...currentSnapshot.stream,
-                  phase: 'streaming',
-                  lastChunkAt: chunkTime,
-                  abortable: true,
-                },
-        }))
+      setSnapshot((currentSnapshot) => ({
+        ...currentSnapshot,
+        messagesByConversation: {
+          ...currentSnapshot.messagesByConversation,
+          [conversationId]: (
+            currentSnapshot.messagesByConversation[conversationId] ?? []
+          ).map((message) =>
+            message.id === assistantMessageId
+              ? {
+                  ...message,
+                  content: streamResult.content,
+                  status: 'complete',
+                  updated_at: finishedAt,
+                  metadata: {
+                    finish_reason: 'complete',
+                    model: resolvedModelName,
+                    regeneration_of: regenerationOf ?? null,
+                  },
+                }
+              : message,
+          ),
+        },
+        stream: initialStreamState,
+      }))
 
-        if (chunkIndex >= chunks.length) {
-          if (streamTimerRef.current) {
-            window.clearInterval(streamTimerRef.current)
-            streamTimerRef.current = null
-          }
+      if (userId) {
+        void refreshConversations(userId)
+      }
 
-          streamResolverRef.current = null
+      return {
+        completed: true,
+        content: streamResult.content,
+        modelName: resolvedModelName,
+        outputTokens:
+          streamResult.usage?.completion_tokens ??
+          estimateTokenCount(streamResult.content),
+      }
+    } catch (error) {
+      streamAbortControllerRef.current = null
 
-          if (userId) {
-            void refreshConversations(userId)
-          }
-
-          resolve()
+      if (
+        abortController.signal.aborted ||
+        (error instanceof DOMException && error.name === 'AbortError')
+      ) {
+        return {
+          completed: false,
+          content: currentContent,
+          modelName: FALLBACK_MODEL_NAME,
+          outputTokens: estimateTokenCount(currentContent),
         }
-      }, STREAM_CHUNK_INTERVAL)
-    })
+      }
 
-    return {
-      completed: streamOutcomeRef.current === 'complete' && chunkIndex >= chunks.length,
-      content: currentContent,
-      modelName: MOCK_MODEL_NAME,
-      outputTokens: estimateTokenCount(currentContent),
+      const message =
+        error instanceof Error ? error.message : 'Failed to stream AI response.'
+      const errorTime = new Date().toISOString()
+
+      await mockChatService.updateAssistantMessage({
+        conversationId,
+        messageId: assistantMessageId,
+        patch: {
+          content: currentContent,
+          error_message: message,
+          status: 'error',
+          metadata: {
+            finish_reason: 'error',
+            model: FALLBACK_MODEL_NAME,
+            regeneration_of: regenerationOf ?? null,
+          },
+          updated_at: errorTime,
+        },
+      })
+
+      setSnapshot((currentSnapshot) => ({
+        ...currentSnapshot,
+        messagesByConversation: {
+          ...currentSnapshot.messagesByConversation,
+          [conversationId]: (
+            currentSnapshot.messagesByConversation[conversationId] ?? []
+          ).map((entry) =>
+            entry.id === assistantMessageId
+              ? {
+                  ...entry,
+                  content: currentContent,
+                  error_message: message,
+                  status: 'error',
+                  updated_at: errorTime,
+                  metadata: {
+                    finish_reason: 'error',
+                    model: FALLBACK_MODEL_NAME,
+                    regeneration_of: regenerationOf ?? null,
+                  },
+                }
+              : entry,
+          ),
+        },
+        stream: {
+          ...initialStreamState,
+          phase: 'error',
+          conversationId,
+          error: message,
+        },
+      }))
+
+      throw error
     }
   }
 
@@ -598,7 +668,7 @@ export function useChatController({
       status: 'pending',
       metadata: {
         finish_reason: 'placeholder',
-        model: MOCK_MODEL_NAME,
+        model: FALLBACK_MODEL_NAME,
         regeneration_of: regenerationOf ?? null,
       },
     })
@@ -739,12 +809,16 @@ export function useChatController({
       accepted = true
 
       await appendMessageToState(conversationId, userMessage)
+      const requestMessages = [
+        ...(snapshot.messagesByConversation[conversationId] ?? []),
+        userMessage,
+      ]
       const assistantDraft = await createAssistantDraft(conversationId, userMessage.id)
       const streamResult = await runAssistantStream(
         conversationId,
         assistantDraft.id,
-        content,
-        requestAttachments,
+        requestMessages,
+        conversationScenarioId,
       )
 
       if (!streamResult.completed) {
@@ -787,14 +861,8 @@ export function useChatController({
     }
 
     streamOutcomeRef.current = 'stopped'
-
-    if (streamTimerRef.current) {
-      window.clearInterval(streamTimerRef.current)
-      streamTimerRef.current = null
-    }
-
-    streamResolverRef.current?.()
-    streamResolverRef.current = null
+    streamAbortControllerRef.current?.abort()
+    streamAbortControllerRef.current = null
 
     const stoppedAt = new Date().toISOString()
     const { conversationId, assistantMessageId } = snapshot.stream
@@ -815,7 +883,7 @@ export function useChatController({
         status: 'stopped',
         metadata: {
           finish_reason: 'stopped',
-          model: MOCK_MODEL_NAME,
+          model: FALLBACK_MODEL_NAME,
         },
         updated_at: stoppedAt,
       },
@@ -834,7 +902,7 @@ export function useChatController({
                   updated_at: stoppedAt,
                   metadata: {
                     finish_reason: 'stopped',
-                    model: MOCK_MODEL_NAME,
+                    model: FALLBACK_MODEL_NAME,
                   },
                 }
               : message,
@@ -844,7 +912,7 @@ export function useChatController({
     }))
 
     if (userId) {
-      await refreshConversations(userId, conversationId)
+      await refreshConversations(userId)
     }
   }
 
@@ -917,11 +985,14 @@ export function useChatController({
         userMessage.id,
         messageId,
       )
+      const requestMessages = conversationMessages
+        .slice(0, assistantIndex)
+        .filter((message) => message.role === 'user' || message.role === 'assistant')
       const streamResult = await runAssistantStream(
         conversationId,
         assistantDraft.id,
-        userMessage.content,
-        requestAttachments,
+        requestMessages,
+        activeConversation?.scenario_id ?? scenarioId,
         messageId,
       )
 
