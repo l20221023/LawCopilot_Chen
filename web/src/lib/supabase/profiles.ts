@@ -2,6 +2,8 @@ import type { UserProfile, UserProfilePatch } from '../../types/auth'
 import { supabase } from './client'
 import { SupabaseServiceError } from './errors'
 
+const INITIAL_FREE_CREDITS = 5
+
 const profileColumns = [
   'id',
   'nickname',
@@ -55,10 +57,48 @@ export async function getUserProfile(
   }
 
   if (!data) {
-    throw new SupabaseServiceError(
-      'PROFILE_NOT_FOUND',
-      'The authenticated user does not have a row in public.users yet.',
-    )
+    return createUserProfile(userId, fallbackEmail)
+  }
+
+  return normalizeUserProfile(
+    data as unknown as Partial<UserProfile> & Pick<UserProfile, 'id'>,
+    fallbackEmail,
+  )
+}
+
+export async function createUserProfile(
+  userId: string,
+  fallbackEmail?: string | null,
+  nickname?: string | null,
+) {
+  const client = getSupabaseClient()
+  const payload = {
+    created_at: new Date().toISOString(),
+    default_scenario_id: null,
+    email: fallbackEmail ?? '',
+    id: userId,
+    nickname: nickname?.trim() || fallbackEmail || 'New user',
+    remaining_credits: INITIAL_FREE_CREDITS,
+    subscription_expires_at: null,
+    subscription_plan: 'free' as const,
+  }
+
+  const { data, error } = await client
+    .from('users')
+    .upsert(payload, { onConflict: 'id' })
+    .select(profileColumns)
+    .single()
+
+  if (error) {
+    if (isMissingUsersTable(error)) {
+      throw new SupabaseServiceError(
+        'PROFILE_TABLE_UNAVAILABLE',
+        'The public.users table is not available yet. Create the profile table before loading account data.',
+        { cause: error },
+      )
+    }
+
+    throw error
   }
 
   return normalizeUserProfile(

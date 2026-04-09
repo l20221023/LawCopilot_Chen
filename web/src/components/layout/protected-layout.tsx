@@ -89,7 +89,7 @@ export function ProtectedLayout() {
   return (
     <div className="min-h-screen px-4 py-4 md:px-6 md:py-6">
       <div className="app-shell-card mx-auto grid min-h-[calc(100vh-2rem)] w-full max-w-[1480px] gap-6 overflow-hidden p-4 md:grid-cols-[280px_minmax(0,1fr)] md:p-6">
-        <aside className="top-6 flex h-fit flex-col justify-between rounded-[24px] bg-[color:var(--surface-muted)] p-4 md:sticky md:max-h-[calc(100vh-5rem)] md:p-5">
+        <aside className="top-6 flex h-fit flex-col gap-6 rounded-[24px] bg-[color:var(--surface-muted)] p-4 md:sticky md:max-h-[calc(100vh-5rem)] md:p-5">
           <div className="space-y-6">
             <div className="space-y-4">
               <span className="eyebrow">
@@ -129,7 +129,7 @@ export function ProtectedLayout() {
             </nav>
           </div>
 
-          <div className="section-card space-y-4 p-4">
+          <div className="section-card mt-auto space-y-4 p-4">
             <div className="space-y-1">
               <div className="mono-label uppercase tracking-[0.18em] text-[color:var(--warning)]">
                 Account

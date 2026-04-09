@@ -58,10 +58,13 @@ export async function signUpWithEmail(
 ): Promise<SignUpResult> {
   const client = getSupabaseClient()
   const { email, password, nickname } = credentials
+  const emailRedirectTo =
+    typeof window === 'undefined' ? undefined : `${window.location.origin}/auth`
   const { data, error } = await client.auth.signUp({
     email,
     password,
     options: {
+      emailRedirectTo,
       data: nickname ? { nickname } : undefined,
     },
   })

@@ -22,14 +22,18 @@ export function ChatPage() {
   const { profile, updateProfile } = useAuth()
   const composer = useChatComposer()
   const defaultScenarioId = getDefaultScenarioId(profile)
-  const [activeScenarioId, setActiveScenarioId] = useState<ScenarioId>(() =>
+  const [preferredScenarioId, setPreferredScenarioId] = useState<ScenarioId>(() =>
     resolveScenarioId({ defaultScenarioId }),
   )
-  const [switchDraft, setSwitchDraft] = useState<ScenarioSwitchDraft | null>(null)
   const chat = useChatController({
     profile,
-    scenarioId: activeScenarioId,
+    scenarioId: preferredScenarioId,
     updateProfile,
+  })
+  const [switchDraft, setSwitchDraft] = useState<ScenarioSwitchDraft | null>(null)
+  const activeScenarioId = resolveScenarioId({
+    activeScenarioId: chat.activeConversation?.scenario_id ?? preferredScenarioId,
+    defaultScenarioId,
   })
 
   const activeScenario = getScenarioById(activeScenarioId) ?? LAW_SCENARIOS[0]
@@ -57,7 +61,7 @@ export function ChatPage() {
     }
 
     await chat.createConversation(switchDraft.nextScenarioId)
-    setActiveScenarioId(switchDraft.nextScenarioId)
+    setPreferredScenarioId(switchDraft.nextScenarioId)
     setSwitchDraft(null)
   }
 
@@ -168,6 +172,7 @@ export function ChatPage() {
               isAttaching={composer.isAttaching}
               isBusy={chat.isBusy}
               lastSubmittedRequest={composer.submittedState}
+              streamError={chat.stream.error}
               streamPhase={chat.stream.phase}
               value={chat.composerValue}
               onAddAttachments={composer.addFiles}

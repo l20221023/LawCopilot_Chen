@@ -16,6 +16,7 @@ type ChatComposerProps = {
   isAttaching: boolean
   isBusy: boolean
   lastSubmittedRequest: SubmittedComposerState | null
+  streamError: string | null
   streamPhase: ChatStreamState['phase']
   value: string
   onAddAttachments(files: File[]): Promise<void>
@@ -33,6 +34,7 @@ export function ChatComposer({
   isAttaching,
   isBusy,
   lastSubmittedRequest,
+  streamError,
   streamPhase,
   value,
   onAddAttachments,
@@ -101,6 +103,9 @@ export function ChatComposer({
           </p>
           {attachmentErrorMessage ? (
             <p className="m-0 text-[color:var(--warning)]">{attachmentErrorMessage}</p>
+          ) : null}
+          {streamError ? (
+            <p className="m-0 text-[color:var(--warning)]">{streamError}</p>
           ) : null}
         </div>
 

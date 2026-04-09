@@ -121,18 +121,29 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
     }
 
-    const subscription = subscribeToAuthStateChange((_event, session) => {
+    const subscription = subscribeToAuthStateChange((event, session) => {
       void (async () => {
         if (cancelled) {
           return
         }
 
-        setLoading(true)
+        const shouldSkipBlockingRefresh =
+          (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') &&
+          session?.user?.id === authUser?.id &&
+          Boolean(profile)
+
+        if (!shouldSkipBlockingRefresh) {
+          setLoading(true)
+        }
 
         try {
-          await applySession(session)
+          if (shouldSkipBlockingRefresh) {
+            setAuthUser(session?.user ?? null)
+          } else {
+            await applySession(session)
+          }
         } finally {
-          if (!cancelled) {
+          if (!cancelled && !shouldSkipBlockingRefresh) {
             setLoading(false)
           }
         }
@@ -143,7 +154,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       cancelled = true
       subscription.unsubscribe()
     }
-  }, [applySession])
+  }, [applySession, authUser?.id, profile])
 
   const refreshProfile = useCallback(async () => {
     if (!authUser) {

@@ -178,8 +178,8 @@ function findPricingOption(optionId: string) {
   return pricingOptions.find((option) => option.id === optionId) ?? null
 }
 
-function addDays(days: number) {
-  const nextDate = new Date()
+function addDaysFrom(baseDate: Date, days: number) {
+  const nextDate = new Date(baseDate)
   nextDate.setDate(nextDate.getDate() + days)
   return nextDate.toISOString()
 }
@@ -191,27 +191,43 @@ function delay(ms: number) {
 }
 
 function buildPurchasedProfile(profile: UserProfile, option: MockPurchaseOption) {
+  const { profile: normalizedProfile } = resolveSubscriptionExpiry(profile)
+
   if (option.family === 'free') {
     return {
-      ...profile,
-      remaining_credits: DEFAULT_FREE_CREDITS,
-      subscription_expires_at: null,
-      subscription_plan: 'free' as const,
+      ...normalizedProfile,
+      remaining_credits: Math.max(
+        normalizedProfile.remaining_credits,
+        DEFAULT_FREE_CREDITS,
+      ),
     }
   }
 
   if (option.family === 'limited') {
     return {
-      ...profile,
-      remaining_credits: profile.remaining_credits + (option.credits ?? 0),
-      subscription_expires_at: null,
-      subscription_plan: 'limited' as const,
+      ...normalizedProfile,
+      remaining_credits:
+        normalizedProfile.remaining_credits + (option.credits ?? 0),
+      subscription_expires_at:
+        normalizedProfile.subscription_plan === 'unlimited'
+          ? normalizedProfile.subscription_expires_at
+          : null,
+      subscription_plan:
+        normalizedProfile.subscription_plan === 'unlimited'
+          ? ('unlimited' as const)
+          : ('limited' as const),
     }
   }
 
+  const baseDate =
+    normalizedProfile.subscription_plan === 'unlimited' &&
+    normalizedProfile.subscription_expires_at
+      ? new Date(normalizedProfile.subscription_expires_at)
+      : new Date()
+
   return {
-    ...profile,
-    subscription_expires_at: addDays(option.durationDays ?? 30),
+    ...normalizedProfile,
+    subscription_expires_at: addDaysFrom(baseDate, option.durationDays ?? 30),
     subscription_plan: 'unlimited' as const,
   }
 }

@@ -40,7 +40,8 @@ export function resolveSubscriptionExpiry(
     profile: {
       ...profile,
       subscription_expires_at: null,
-      subscription_plan: 'free' as const,
+      subscription_plan:
+        profile.remaining_credits > 0 ? ('limited' as const) : ('free' as const),
     },
   }
 }
@@ -82,8 +83,8 @@ export function checkQuotaBeforeSend(
     profile: normalizedProfile,
     reason:
       profile.subscription_plan === 'unlimited'
-        ? '订阅已过期，已自动回退为免费档，请续费或购买按次包。'
-        : '当前剩余次数不足，请购买按次包或升级无限订阅。',
+        ? '订阅已过期，已自动回退为免费或按次状态，请续费或购买次数包。'
+        : '当前剩余次数不足，请购买次数包或升级无限订阅。',
   }
 }
 
@@ -129,7 +130,7 @@ export function buildBillingOverview(
       nextActionLabel: '发送成功后仅记录 usage，不扣减次数。',
       planLabel: '无限订阅',
       profile: normalizedProfile,
-      statusLabel: '有效期内不限次数',
+      statusLabel: '有效期内不限发送次数',
       tone: 'unlimited',
     }
   }
@@ -140,14 +141,14 @@ export function buildBillingOverview(
       detailLabel: `剩余次数：${normalizedProfile.remaining_credits}`,
       nextActionLabel:
         quotaCheck.accessStatus === 'subscription-expired'
-          ? '订阅已过期，当前按免费档拦截。'
+          ? '订阅已过期，当前按免费或按次规则拦截。'
           : '当前发送会被前置额度校验拦截。',
       planLabel:
         normalizedProfile.subscription_plan === 'limited' ? '按次付费' : '免费',
       profile: normalizedProfile,
       statusLabel:
         quotaCheck.accessStatus === 'subscription-expired'
-          ? '订阅过期，已回退免费'
+          ? '订阅过期，已回退到次数模式'
           : '次数已用尽',
       tone:
         quotaCheck.accessStatus === 'subscription-expired'

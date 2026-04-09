@@ -34,6 +34,14 @@ function getFriendlyAuthError(error: unknown) {
     return '为了安全，短时间内无法重复发送邮件，请稍后再试。'
   }
 
+  if (message.includes('Email not confirmed')) {
+    return '该邮箱尚未完成验证。请先点击注册邮件中的确认链接，再登录。'
+  }
+
+  if (message.includes('Invalid Refresh Token') || message.includes('refresh_token')) {
+    return '当前恢复或登录链接已经失效，请重新发起一次操作。'
+  }
+
   return message
 }
 
