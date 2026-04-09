@@ -27,14 +27,14 @@ const navigationItems = [
 export function ProtectedLayout() {
   const {
     isAuthenticated,
-    loading,
+    initializing,
     profile,
     profileError,
     refreshProfile,
     signOut,
   } = useAuth()
 
-  if (loading) {
+  if (initializing) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4 py-6">
         <div className="app-shell-card w-full max-w-xl p-6 md:p-8">

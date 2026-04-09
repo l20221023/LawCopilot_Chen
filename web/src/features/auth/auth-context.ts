@@ -13,6 +13,7 @@ import type {
 
 type AuthContextValue = {
   status: AuthStatus
+  initializing: boolean
   isAuthenticated: boolean
   loading: boolean
   authUser: AuthUser | null

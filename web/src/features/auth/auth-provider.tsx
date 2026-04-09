@@ -33,6 +33,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [profileError, setProfileError] = useState<string | null>(null)
+  const [initializing, setInitializing] = useState(true)
   const [loading, setLoading] = useState(true)
   const authUserIdRef = useRef<string | null>(null)
   const hasProfileRef = useRef(false)
@@ -95,6 +96,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setAuthUser(null)
         setProfile(null)
         setProfileError(null)
+        setInitializing(false)
         setLoading(false)
         return
       }
@@ -115,6 +117,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         }
       } finally {
         if (!cancelled) {
+          setInitializing(false)
           setLoading(false)
         }
       }
@@ -266,7 +269,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const isAuthenticated = Boolean(authUser)
 
     return {
-      status: loading ? 'loading' : isAuthenticated ? 'authenticated' : 'guest',
+      status: initializing ? 'loading' : isAuthenticated ? 'authenticated' : 'guest',
+      initializing,
       isAuthenticated,
       loading,
       authUser,
@@ -283,7 +287,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       enterPreview: () => {},
       exitPreview: signOut,
     }
-  }, [authUser, loading, profile, profileError, refreshProfile, requestPasswordResetEmail, signIn, signOut, signUp, updatePassword, updateProfile])
+  }, [authUser, initializing, loading, profile, profileError, refreshProfile, requestPasswordResetEmail, signIn, signOut, signUp, updatePassword, updateProfile])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

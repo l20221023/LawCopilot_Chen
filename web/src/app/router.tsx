@@ -30,9 +30,9 @@ function RouteLoadingScreen() {
 }
 
 function RootRedirect() {
-  const { isAuthenticated, loading } = useAuth()
+  const { initializing, isAuthenticated } = useAuth()
 
-  if (loading) {
+  if (initializing) {
     return <RouteLoadingScreen />
   }
 
@@ -44,9 +44,9 @@ function AppOutlet() {
 }
 
 function AuthRoute() {
-  const { isAuthenticated, loading } = useAuth()
+  const { initializing, isAuthenticated } = useAuth()
 
-  if (loading) {
+  if (initializing) {
     return <RouteLoadingScreen />
   }
 
@@ -58,9 +58,9 @@ function AuthRoute() {
 }
 
 function ProtectedRoute() {
-  const { isAuthenticated, loading } = useAuth()
+  const { initializing, isAuthenticated } = useAuth()
 
-  if (loading) {
+  if (initializing) {
     return <RouteLoadingScreen />
   }
 
