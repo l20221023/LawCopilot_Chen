@@ -111,8 +111,8 @@ export function ChatWorkspacePage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <header className="flex shrink-0 flex-col items-center gap-3 px-1 pb-4 text-center">
+    <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      <header className="shrink-0 flex flex-col items-center gap-3 px-1 pb-4 pt-1 text-center">
         <button
           type="button"
           onClick={() => navigate('/app/chat')}
@@ -151,7 +151,7 @@ export function ChatWorkspacePage() {
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden pb-[14rem] md:pb-[12.5rem]">
         <MessageStream
           copiedMessageId={chat.copiedMessageId}
           isLoading={chat.isLoading}
@@ -160,24 +160,24 @@ export function ChatWorkspacePage() {
           onCopy={chat.copyMessage}
           onRegenerate={chat.regenerateMessage}
         />
+      </div>
 
-        <div className="shrink-0">
-          <ChatComposer
-            attachments={composer.attachments}
-            attachmentErrorMessage={composer.errorMessage}
-            isAttaching={composer.isAttaching}
-            isBusy={chat.isBusy}
-            streamError={chat.stream.error}
-            streamPhase={chat.stream.phase}
-            value={chat.composerValue}
-            onAddAttachments={composer.addFiles}
-            onChange={chat.updateComposer}
-            onClearAttachments={composer.clearComposer}
-            onRemoveAttachment={composer.removeAttachment}
-            onSend={handleSend}
-            onStop={chat.stopGeneration}
-          />
-        </div>
+      <div className="absolute inset-x-0 bottom-0 z-10 bg-[linear-gradient(180deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.94)_18%,rgba(255,255,255,1)_40%)] pb-1 pt-6">
+        <ChatComposer
+          attachments={composer.attachments}
+          attachmentErrorMessage={composer.errorMessage}
+          isAttaching={composer.isAttaching}
+          isBusy={chat.isBusy}
+          streamError={chat.stream.error}
+          streamPhase={chat.stream.phase}
+          value={chat.composerValue}
+          onAddAttachments={composer.addFiles}
+          onChange={chat.updateComposer}
+          onClearAttachments={composer.clearComposer}
+          onRemoveAttachment={composer.removeAttachment}
+          onSend={handleSend}
+          onStop={chat.stopGeneration}
+        />
       </div>
     </div>
   )

@@ -79,7 +79,7 @@ export function MessageStream({
 }: MessageStreamProps) {
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] bg-transparent">
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-4">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-2 pb-4">
         {isLoading ? (
           <div className="flex h-full items-center justify-center">
             <p className="text-sm muted-copy">正在加载对话内容...</p>

@@ -83,9 +83,9 @@ function ChatAppShell() {
   }
 
   return (
-    <div className="min-h-screen bg-transparent px-3 py-3 md:px-4 md:py-4">
-      <div className="mx-auto grid min-h-[calc(100vh-1.5rem)] w-full max-w-[1500px] gap-3 md:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="flex min-h-0 flex-col rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-3">
+    <div className="h-[100dvh] overflow-hidden bg-transparent px-3 py-3 md:px-4 md:py-4">
+      <div className="mx-auto grid h-full w-full max-w-[1500px] gap-3 md:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-3">
           <div className="space-y-3 border-b border-[color:var(--border)] pb-3">
             <div className="px-1">
               <div className="text-sm font-semibold text-[color:var(--text)]">
@@ -237,8 +237,8 @@ function ChatAppShell() {
           </div>
         </aside>
 
-        <main className="min-w-0 overflow-hidden rounded-[24px] border border-[color:var(--border)] bg-[color:var(--background-strong)]">
-          <div className="flex h-full min-h-[calc(100vh-1.5rem)] flex-col overflow-hidden px-4 py-4 md:px-6 md:py-6">
+        <main className="relative min-w-0 h-full overflow-hidden rounded-[24px] border border-[color:var(--border)] bg-[color:var(--background-strong)]">
+          <div className="flex h-full min-h-0 flex-col overflow-hidden px-4 py-4 md:px-6 md:py-6">
             <Outlet />
           </div>
         </main>
