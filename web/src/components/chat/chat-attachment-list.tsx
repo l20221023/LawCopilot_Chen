@@ -15,11 +15,11 @@ function getAttachmentBadge(attachment: ComposerAttachment) {
 
   if (attachment.attachment.type === 'txt') {
     return attachment.attachment.extracted_text
-      ? 'TXT 已读取文本'
-      : 'TXT 读取为空'
+      ? 'TXT 文本已读取'
+      : 'TXT 内容为空'
   }
 
-  return 'PDF 文本提取待接入'
+  return 'PDF 文本解析接口待接入'
 }
 
 export function ChatAttachmentList({
@@ -27,15 +27,11 @@ export function ChatAttachmentList({
   onRemove,
 }: ChatAttachmentListProps) {
   if (attachments.length === 0) {
-    return (
-      <div className="rounded-[18px] border border-dashed border-[color:var(--border-strong)] bg-white/70 px-4 py-5 text-sm leading-6 muted-copy">
-        当前没有附件。支持图片、PDF、TXT，图片会生成缩略图，TXT 会直接读取文本，PDF 先保留解析接口。
-      </div>
-    )
+    return null
   }
 
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="mb-3 grid gap-3 md:grid-cols-2">
       {attachments.map((item) => {
         const isImage = item.attachment.type === 'image'
         const previewText =

@@ -1,8 +1,8 @@
 import type { BillingOverview } from '../billing-types'
 
 const toneClassNames: Record<BillingOverview['tone'], string> = {
-  expired: 'border-[color:var(--warning)] bg-[rgba(181,106,27,0.08)]',
-  free: 'border-[color:var(--border-strong)] bg-white/85',
+  expired: 'border-[color:var(--warning)] bg-[rgba(201,124,34,0.08)]',
+  free: 'border-[color:var(--border)] bg-white',
   limited: 'border-[color:var(--accent)] bg-[color:var(--accent-soft)]',
   unlimited: 'border-emerald-300 bg-emerald-50',
 }

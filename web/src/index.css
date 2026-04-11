@@ -1,31 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4efe7;
-  --background-strong: #fbf8f2;
-  --surface: rgba(255, 255, 255, 0.78);
-  --surface-strong: rgba(255, 255, 255, 0.92);
-  --surface-muted: rgba(16, 24, 40, 0.05);
-  --border: rgba(38, 54, 61, 0.12);
-  --border-strong: rgba(23, 37, 45, 0.2);
-  --text: #1f2a33;
-  --text-soft: #5f6c76;
-  --accent: #0f6b68;
-  --accent-strong: #0a4f4d;
-  --accent-soft: rgba(15, 107, 104, 0.1);
-  --warning: #b56a1b;
-  --shadow: 0 24px 80px rgba(28, 42, 48, 0.12);
-  --radius-xl: 28px;
-  --radius-lg: 20px;
+  --background: #f7f7f8;
+  --background-strong: #ffffff;
+  --surface: rgba(255, 255, 255, 0.88);
+  --surface-strong: rgba(255, 255, 255, 0.96);
+  --surface-muted: #f1f1f3;
+  --border: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.14);
+  --text: #111827;
+  --text-soft: #6b7280;
+  --accent: #1f7a66;
+  --accent-strong: #165c4d;
+  --accent-soft: rgba(31, 122, 102, 0.1);
+  --warning: #c97c22;
+  --shadow: 0 12px 36px rgba(15, 23, 42, 0.08);
+  --radius-xl: 24px;
+  --radius-lg: 18px;
   --radius-md: 14px;
-  --font-body: "Aptos", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-heading: "Georgia", "Times New Roman", "Songti SC", serif;
+  --font-body: "Aptos", "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --font-heading: "Aptos", "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
   --font-mono: "Cascadia Code", "Consolas", monospace;
   color: var(--text);
-  background:
-    radial-gradient(circle at top left, rgba(15, 107, 104, 0.16), transparent 30%),
-    radial-gradient(circle at bottom right, rgba(181, 106, 27, 0.16), transparent 28%),
-    var(--background);
+  background: var(--background);
   font-family: var(--font-body);
   line-height: 1.5;
   font-synthesis: none;
@@ -46,18 +43,7 @@ body {
   margin: 0;
   min-height: 100vh;
   color: var(--text);
-}
-
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(31, 42, 51, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(31, 42, 51, 0.04) 1px, transparent 1px);
-  background-size: 28px 28px;
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.45), transparent 85%);
+  background: linear-gradient(180deg, #fafafa 0%, #f5f5f6 100%);
 }
 
 a {
@@ -79,15 +65,15 @@ textarea {
 .app-shell-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(12px);
 }
 
 .section-card {
   background: var(--surface-strong);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
 }
 
 .eyebrow {
@@ -96,10 +82,10 @@ textarea {
   gap: 0.5rem;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.65);
-  padding: 0.4rem 0.8rem;
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-soft);
 }
@@ -107,17 +93,17 @@ textarea {
 .display-title {
   margin: 0;
   font-family: var(--font-heading);
-  font-size: clamp(2.4rem, 4vw, 4.75rem);
-  line-height: 0.95;
-  letter-spacing: -0.05em;
+  font-size: clamp(2.1rem, 3vw, 3.2rem);
+  line-height: 1.05;
+  letter-spacing: -0.04em;
 }
 
 .page-title {
   margin: 0;
   font-family: var(--font-heading);
-  font-size: clamp(1.8rem, 3vw, 2.8rem);
-  line-height: 1;
-  letter-spacing: -0.04em;
+  font-size: clamp(1.5rem, 2vw, 2.2rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
 }
 
 .muted-copy {
@@ -126,5 +112,5 @@ textarea {
 
 .mono-label {
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
 }

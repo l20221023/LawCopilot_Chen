@@ -120,6 +120,11 @@ export type DeleteConversationInput = {
   conversationId: string
 }
 
+export type UpdateConversationInput = {
+  conversationId: string
+  patch: Partial<Pick<Conversation, 'title' | 'last_message_preview' | 'updated_at'>>
+}
+
 export type ListMessagesInput = {
   conversationId: string
 }
@@ -153,6 +158,7 @@ export type ChatService = {
   listConversations(input: ListConversationsInput): Promise<Conversation[]>
   createConversation(input: CreateConversationInput): Promise<Conversation>
   deleteConversation(input: DeleteConversationInput): Promise<void>
+  updateConversation(input: UpdateConversationInput): Promise<Conversation>
   listMessages(input: ListMessagesInput): Promise<ChatMessage[]>
   createUserMessage(input: CreateUserMessageInput): Promise<ChatMessage>
   createAssistantMessage(input: CreateAssistantMessageInput): Promise<ChatMessage>

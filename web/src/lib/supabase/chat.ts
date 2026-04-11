@@ -7,6 +7,7 @@ import type {
   CreateAssistantMessageInput,
   CreateConversationInput,
   CreateUserMessageInput,
+  UpdateConversationInput,
   UpdateAssistantMessageInput,
 } from '../../types/chat'
 
@@ -55,16 +56,16 @@ function getSupabaseClient() {
 
 function buildAttachmentPreview(attachments: ChatMessage['attachments']) {
   if (attachments.length === 0) {
-    return 'No messages yet.'
+    return '暂无消息'
   }
 
   const firstAttachment = attachments[0]
 
   if (attachments.length === 1) {
-    return `Uploaded attachment: ${firstAttachment.name}`
+    return `已上传附件：${firstAttachment.name}`
   }
 
-  return `Uploaded ${attachments.length} attachments. First attachment: ${firstAttachment.name}`
+  return `已上传 ${attachments.length} 个附件，首个附件：${firstAttachment.name}`
 }
 
 function buildConversationPreview(
@@ -159,7 +160,7 @@ export async function createSupabaseConversation(input: CreateConversationInput)
     id: crypto.randomUUID(),
     last_message_preview: null,
     scenario_id: input.scenarioId ?? 'contract-review',
-    title: input.title?.trim() || 'New conversation',
+    title: input.title?.trim() || '新建会话',
     updated_at: timestamp,
     user_id: input.userId,
   }
@@ -196,6 +197,27 @@ export async function deleteSupabaseConversation(conversationId: string) {
   if (error) {
     throw error
   }
+}
+
+export async function updateSupabaseConversation(input: UpdateConversationInput) {
+  const client = getSupabaseClient()
+  const patch = {
+    ...input.patch,
+    updated_at: input.patch.updated_at ?? new Date().toISOString(),
+  }
+
+  const { data, error } = await client
+    .from('conversations')
+    .update(patch)
+    .eq('id', input.conversationId)
+    .select(conversationColumns)
+    .single()
+
+  if (error) {
+    throw error
+  }
+
+  return normalizeConversation(data)
 }
 
 export async function listSupabaseMessages(conversationId: string) {

@@ -169,19 +169,42 @@ function getErrorMessage(payload: unknown) {
     payload &&
     typeof payload === 'object' &&
     'error' in payload &&
+    typeof payload.error === 'string'
+  ) {
+    const errorText = payload.error
+
+    if (errorText.includes('not available in your region')) {
+      return '当前模型在你所在的地区不可用，请在环境变量中切换为其他可用模型。'
+    }
+
+    return errorText
+  }
+
+  if (
+    payload &&
+    typeof payload === 'object' &&
+    'error' in payload &&
     payload.error &&
     typeof payload.error === 'object' &&
     'message' in payload.error &&
     typeof payload.error.message === 'string'
   ) {
+    if (payload.error.message.includes('not available in your region')) {
+      return '当前模型在你所在的地区不可用，请在环境变量中切换为其他可用模型。'
+    }
+
     return payload.error.message
   }
 
   if (typeof payload === 'string' && payload.trim()) {
+    if (payload.includes('not available in your region')) {
+      return '当前模型在你所在的地区不可用，请在环境变量中切换为其他可用模型。'
+    }
+
     return payload
   }
 
-  return 'Chat request failed.'
+  return '对话请求失败。'
 }
 
 export async function streamChatCompletion({
@@ -215,7 +238,7 @@ export async function streamChatCompletion({
   }
 
   if (!response.body) {
-    throw new Error('AI stream body is unavailable.')
+    throw new Error('AI 响应流不可用。')
   }
 
   const reader = response.body.getReader()

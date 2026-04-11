@@ -1,10 +1,9 @@
 import { Copy, RefreshCw, Sparkles } from 'lucide-react'
 
-import type { ChatMessage, ChatStreamState, Conversation } from '../../types/chat'
+import type { ChatMessage, ChatStreamState } from '../../types/chat'
 import { MessageAttachmentList } from './message-attachment-list'
 
 type MessageStreamProps = {
-  activeConversation: Conversation | null
   copiedMessageId: string | null
   isLoading: boolean
   messages: ChatMessage[]
@@ -13,13 +12,23 @@ type MessageStreamProps = {
   onRegenerate(messageId: string): Promise<void>
 }
 
-const streamLabels: Record<ChatStreamState['phase'], string> = {
-  idle: '就绪',
-  submitting: '提交消息',
-  'preparing-assistant': '创建回复草稿',
-  streaming: '流式占位中',
-  stopping: '停止中',
-  error: '异常',
+function getStatusLabel(status: ChatMessage['status'], role: ChatMessage['role']) {
+  if (role === 'user') {
+    return '已发送'
+  }
+
+  switch (status) {
+    case 'pending':
+      return '等待生成'
+    case 'streaming':
+      return '正在生成'
+    case 'stopped':
+      return '已停止'
+    case 'error':
+      return '异常'
+    default:
+      return '已完成'
+  }
 }
 
 function AssistantActions({
@@ -61,7 +70,6 @@ function AssistantActions({
 }
 
 export function MessageStream({
-  activeConversation,
   copiedMessageId,
   isLoading,
   messages,
@@ -70,43 +78,14 @@ export function MessageStream({
   onRegenerate,
 }: MessageStreamProps) {
   return (
-    <section className="section-card flex min-h-[640px] min-w-0 flex-col p-4 md:p-6">
-      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[color:var(--border)] pb-4">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="eyebrow">Workspace</span>
-            <span className="rounded-full border border-[color:var(--border)] bg-white/80 px-3 py-1 text-xs text-[color:var(--text-soft)]">
-              场景接口预留
-            </span>
-          </div>
-          <div>
-            <h1 className="page-title">
-              {activeConversation?.title ?? '聊天主链路'}
-            </h1>
-            <p className="mt-2 text-sm leading-6 muted-copy">
-              页面层只装配会话列表、消息流和输入区；真实 AI、额度、场景配置在后续 session 接入。
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-[20px] border border-[color:var(--border)] bg-white/85 px-4 py-3">
-          <div className="mono-label text-[color:var(--accent)]">Stream state</div>
-          <div className="mt-2 text-sm font-medium text-[color:var(--text)]">
-            {streamLabels[stream.phase]}
-          </div>
-          <p className="mt-1 text-xs leading-5 muted-copy">
-            assistantId: {stream.assistantMessageId ?? '待创建'}
-          </p>
-        </div>
-      </header>
-
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto py-5">
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] bg-transparent">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pb-4">
         {isLoading ? (
           <div className="flex h-full items-center justify-center">
-            <p className="text-sm muted-copy">正在加载聊天数据...</p>
+            <p className="text-sm muted-copy">正在加载对话内容...</p>
           </div>
         ) : messages.length > 0 ? (
-          <div className="space-y-4">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
             {messages.map((message) => {
               const isAssistant = message.role === 'assistant'
               const isStreaming = message.status === 'streaming'
@@ -115,10 +94,10 @@ export function MessageStream({
                 <article
                   key={message.id}
                   className={[
-                    'max-w-4xl rounded-[24px] border p-4 md:p-5',
+                    'rounded-[22px] px-5 py-4',
                     message.role === 'user'
-                      ? 'ml-auto border-[color:var(--accent)] bg-[color:var(--accent-soft)]'
-                      : 'border-[color:var(--border)] bg-white/85',
+                      ? 'ml-auto max-w-[88%] border border-[color:var(--border)] bg-white'
+                      : 'max-w-full bg-transparent',
                   ].join(' ')}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -126,13 +105,13 @@ export function MessageStream({
                       {isAssistant ? (
                         <Sparkles className="h-4 w-4 text-[color:var(--accent)]" />
                       ) : null}
-                      {message.role === 'user' ? '用户' : '助手'}
+                      {message.role === 'user' ? '你' : '法律助手'}
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="rounded-full border border-[color:var(--border)] px-3 py-1 text-xs text-[color:var(--text-soft)]">
-                        {message.status ?? 'complete'}
+                      <span className="rounded-full bg-[color:var(--surface-muted)] px-2.5 py-1 text-[11px] text-[color:var(--text-soft)]">
+                        {getStatusLabel(message.status, message.role)}
                       </span>
-                      <span className="mono-label text-[color:var(--text-soft)]">
+                      <span className="text-[11px] muted-copy">
                         {new Date(message.updated_at ?? message.created_at).toLocaleTimeString(
                           'zh-CN',
                           {
@@ -144,8 +123,8 @@ export function MessageStream({
                     </div>
                   </div>
 
-                  <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-[color:var(--text)]">
-                    {message.content || (isStreaming ? '正在接收内容...' : '等待内容写入')}
+                  <div className="mt-3 whitespace-pre-wrap text-[15px] leading-8 text-[color:var(--text)]">
+                    {message.content || (isStreaming ? '正在生成内容...' : '等待内容写入')}
                   </div>
 
                   <MessageAttachmentList attachments={message.attachments} />
@@ -171,15 +150,15 @@ export function MessageStream({
             })}
           </div>
         ) : (
-          <div className="flex h-full flex-col items-center justify-center rounded-[24px] border border-dashed border-[color:var(--border-strong)] bg-white/60 px-6 py-10 text-center">
-            <div className="rounded-full bg-[color:var(--accent-soft)] p-3 text-[color:var(--accent)]">
+          <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+            <div className="rounded-full bg-[color:var(--accent-soft)] p-4 text-[color:var(--accent)]">
               <Sparkles className="h-6 w-6" />
             </div>
-            <h2 className="mt-4 text-xl font-semibold text-[color:var(--text)]">
-              从第一条消息开始
+            <h2 className="mt-5 text-2xl font-semibold text-[color:var(--text)]">
+              先发送第一条消息
             </h2>
-            <p className="mt-2 max-w-md text-sm leading-6 muted-copy">
-              这里已经预留了消息列表和 assistant 操作区，后续可直接接入真实流式输出。
+            <p className="mt-2 max-w-xl text-sm leading-7 muted-copy">
+              你可以直接提问，或者上传合同、图片、TXT、PDF 作为上下文。
             </p>
           </div>
         )}

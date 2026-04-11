@@ -18,14 +18,10 @@ const listeners = new Set<() => void>()
 
 export const pricingPlans: PricingPlan[] = [
   {
-    benefits: [
-      '注册即送 5 次额度',
-      '发送前校验剩余额度',
-      '发送成功后扣减 1 次',
-    ],
-    description: '用于首次体验流程，不接真实支付。',
+    benefits: ['注册即送 5 次额度', '发送前校验剩余额度', '发送成功后扣减 1 次'],
+    description: '适合首次体验和基础联调，不接真实支付。',
     family: 'free',
-    headline: '适合初次试用和流程演示',
+    headline: '适合先体验完整链路',
     id: 'free',
     kind: 'free',
     options: [
@@ -39,50 +35,24 @@ export const pricingPlans: PricingPlan[] = [
     title: '免费',
   },
   {
-    benefits: [
-      '购买后叠加 remaining_credits',
-      '额度耗尽后按免费逻辑拦截',
-      '适合低频、按件使用',
-    ],
-    description: '模拟购买按次包，不接真实支付。',
+    benefits: ['购买后直接增加剩余次数', '额度用完后按规则拦截', '适合低频按需使用'],
+    description: '模拟购买次数包，不接真实支付。',
     family: 'limited',
     headline: '按成功发送次数计费',
     id: 'limited',
     kind: 'credits',
     options: [
-      {
-        credits: 10,
-        family: 'limited',
-        id: 'credits-10',
-        label: '10 次',
-        priceLabel: '¥19',
-      },
-      {
-        credits: 50,
-        family: 'limited',
-        id: 'credits-50',
-        label: '50 次',
-        priceLabel: '¥79',
-      },
-      {
-        credits: 200,
-        family: 'limited',
-        id: 'credits-200',
-        label: '200 次',
-        priceLabel: '¥199',
-      },
+      { credits: 10, family: 'limited', id: 'credits-10', label: '10 次', priceLabel: '¥19' },
+      { credits: 50, family: 'limited', id: 'credits-50', label: '50 次', priceLabel: '¥79' },
+      { credits: 200, family: 'limited', id: 'credits-200', label: '200 次', priceLabel: '¥199' },
     ],
     title: '按次付费',
   },
   {
-    benefits: [
-      '有效期内不限发送次数',
-      '到期自动回退 free',
-      '适合高频使用场景',
-    ],
+    benefits: ['有效期内不限发送次数', '到期后自动回退到免费或按次模式', '适合高频工作流'],
     description: '模拟订阅时长，不接真实支付。',
     family: 'unlimited',
-    headline: '只判断订阅是否仍在有效期',
+    headline: '按订阅有效期计费',
     id: 'unlimited',
     kind: 'subscription',
     options: [
@@ -134,7 +104,7 @@ function createDefaultProfile(): UserProfile {
     default_scenario_id: null,
     email: 'preview@lawcopilot.local',
     id: 'preview-user',
-    nickname: 'Preview Counsel',
+    nickname: '预览用户',
     remaining_credits: DEFAULT_FREE_CREDITS,
     subscription_expires_at: null,
     subscription_plan: 'free',
@@ -234,11 +204,11 @@ function buildPurchasedProfile(profile: UserProfile, option: MockPurchaseOption)
 
 function buildPurchaseMessage(option: MockPurchaseOption) {
   if (option.family === 'free') {
-    return '已恢复免费试用档，剩余次数重置为 5。'
+    return '已恢复免费试用档，剩余次数重置为 5 次。'
   }
 
   if (option.family === 'limited') {
-    return `已模拟购买按次包，新增 ${option.credits ?? 0} 次额度。`
+    return `已模拟购买次数包，新增 ${option.credits ?? 0} 次额度。`
   }
 
   return `已模拟开通无限订阅，有效期 ${option.durationDays ?? 30} 天。`
@@ -314,7 +284,7 @@ export async function applyMockPurchaseToProfile(
   const option = findPricingOption(optionId)
 
   if (!option) {
-    throw new Error('Mock purchase option not found')
+    throw new Error('未找到对应的套餐选项')
   }
 
   await delay(450)
@@ -333,7 +303,7 @@ export async function applyMockPurchase(optionId: string) {
   const option = findPricingOption(optionId)
 
   if (!option) {
-    throw new Error('Mock purchase option not found')
+    throw new Error('未找到对应的套餐选项')
   }
 
   await delay(450)

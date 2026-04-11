@@ -59,7 +59,7 @@ export function checkQuotaBeforeSend(
       allowed: true,
       creditCost,
       profile: normalizedProfile,
-      reason: '当前为无限订阅，有效期内发送不扣减次数。',
+      reason: '当前是无限订阅，有效期内发送不会扣减次数。',
     }
   }
 
@@ -83,7 +83,7 @@ export function checkQuotaBeforeSend(
     profile: normalizedProfile,
     reason:
       profile.subscription_plan === 'unlimited'
-        ? '订阅已过期，已自动回退为免费或按次状态，请续费或购买次数包。'
+        ? '订阅已过期，已自动回退为免费或按次模式，请续费或购买次数包。'
         : '当前剩余次数不足，请购买次数包或升级无限订阅。',
   }
 }
@@ -127,7 +127,7 @@ export function buildBillingOverview(
       detailLabel: normalizedProfile.subscription_expires_at
         ? `到期时间：${normalizedProfile.subscription_expires_at}`
         : '到期时间待补充',
-      nextActionLabel: '发送成功后仅记录 usage，不扣减次数。',
+      nextActionLabel: '发送成功后只记录 usage，不扣减次数。',
       planLabel: '无限订阅',
       profile: normalizedProfile,
       statusLabel: '有效期内不限发送次数',
@@ -148,7 +148,7 @@ export function buildBillingOverview(
       profile: normalizedProfile,
       statusLabel:
         quotaCheck.accessStatus === 'subscription-expired'
-          ? '订阅过期，已回退到次数模式'
+          ? '订阅已过期，已回退到次数模式'
           : '次数已用尽',
       tone:
         quotaCheck.accessStatus === 'subscription-expired'

@@ -8,6 +8,7 @@ import {
   deleteSupabaseConversation,
   listSupabaseConversations,
   listSupabaseMessages,
+  updateSupabaseConversation,
   updateSupabaseAssistantMessage,
 } from '../../lib/supabase/chat'
 
@@ -18,6 +19,7 @@ const supabaseChatService = createChatService({
   deleteConversation: async (input) => deleteSupabaseConversation(input.conversationId),
   listConversations: async (input) => listSupabaseConversations(input.userId),
   listMessages: async (input) => listSupabaseMessages(input.conversationId),
+  updateConversation: async (input) => updateSupabaseConversation(input),
   updateAssistantMessage: async (input) => updateSupabaseAssistantMessage(input),
 })
 

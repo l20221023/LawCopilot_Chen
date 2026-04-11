@@ -23,6 +23,7 @@ import type {
 import { chatService } from './runtime-chat-service'
 
 const FALLBACK_MODEL_NAME = 'openrouter'
+const DEFAULT_CONVERSATION_TITLES = new Set(['New conversation', '新建会话', '新对话'])
 
 const initialStreamState: ChatStreamState = {
   phase: 'idle',
@@ -109,6 +110,31 @@ function hasBillingChanges(current: UserProfile, next: UserProfile) {
     current.subscription_plan !== next.subscription_plan ||
     current.subscription_expires_at !== next.subscription_expires_at
   )
+}
+
+function isUntitledConversation(title?: string | null) {
+  return !title || DEFAULT_CONVERSATION_TITLES.has(title.trim())
+}
+
+function deriveConversationTitle(
+  content: string,
+  attachments: MessageAttachment[] = [],
+  requestAttachments?: PreparedMessageAttachments,
+) {
+  const normalizedContent = content.replace(/\s+/g, ' ').trim()
+
+  if (normalizedContent) {
+    return normalizedContent.slice(0, 24)
+  }
+
+  const firstAttachmentName =
+    attachments[0]?.name ?? requestAttachments?.attachments[0]?.name ?? null
+
+  if (firstAttachmentName) {
+    return firstAttachmentName.slice(0, 24)
+  }
+
+  return '新建会话'
 }
 
 export function useChatController({
@@ -292,7 +318,7 @@ export function useChatController({
     const conversation = await chatService.createConversation({
       userId,
       scenarioId: nextScenarioId,
-      title: 'New conversation',
+      title: '新建会话',
     })
 
     await refreshConversations(userId, conversation.id)
@@ -388,6 +414,33 @@ export function useChatController({
           message,
         ],
       },
+    }))
+  }
+
+  async function updateConversationTitle(
+    conversationId: string,
+    nextTitle: string,
+    activeConversationId = conversationId,
+  ) {
+    const trimmedTitle = nextTitle.trim()
+
+    if (!trimmedTitle) {
+      return
+    }
+
+    const updatedConversation = await chatService.updateConversation({
+      conversationId,
+      patch: {
+        title: trimmedTitle,
+      },
+    })
+
+    setSnapshot((currentSnapshot) => ({
+      ...currentSnapshot,
+      activeConversationId,
+      conversations: currentSnapshot.conversations.map((conversation) =>
+        conversation.id === conversationId ? updatedConversation : conversation,
+      ),
     }))
   }
 
@@ -765,11 +818,11 @@ export function useChatController({
     let accepted = false
 
     if (!conversationId) {
-      const fallbackTitle =
-        content ||
-        attachments[0]?.name ||
-        requestAttachments?.attachments[0]?.name ||
-        'New conversation'
+      const fallbackTitle = deriveConversationTitle(
+        content,
+        attachments,
+        requestAttachments,
+      )
       const conversation = await chatService.createConversation({
         userId,
         scenarioId,
@@ -811,6 +864,15 @@ export function useChatController({
         attachments,
       })
       accepted = true
+
+      if (isUntitledConversation(activeConversation?.title)) {
+        const derivedTitle = deriveConversationTitle(
+          content,
+          attachments,
+          requestAttachments,
+        )
+        await updateConversationTitle(conversationId, derivedTitle, conversationId)
+      }
 
       await appendMessageToState(conversationId, userMessage)
       const requestMessages = [

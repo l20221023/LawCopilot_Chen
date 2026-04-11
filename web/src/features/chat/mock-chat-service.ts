@@ -10,6 +10,7 @@ import type {
   ListConversationsInput,
   ListMessagesInput,
   UpdateAssistantMessageInput,
+  UpdateConversationInput,
 } from '../../types/chat'
 
 type ChatStore = {
@@ -42,7 +43,7 @@ function buildSeedStore(): ChatStore {
         user_id: PREVIEW_USER_ID,
         title: '合同审阅要点',
         scenario_id: DEFAULT_SCENARIO_ID,
-        last_message_preview: '这里先保留 mock assistant 回答，后续接真实流式输出。',
+        last_message_preview: '这里先保留 mock assistant 回复，后续接真实流式输出。',
         created_at: secondCreatedAt,
         updated_at: secondCreatedAt,
       },
@@ -98,7 +99,7 @@ function buildSeedStore(): ChatStore {
           id: createId('msg'),
           conversation_id: conversationBId,
           role: 'assistant',
-          content: '这里先保留 mock assistant 回答，后续接真实流式输出。',
+          content: '这里先保留 mock assistant 回复，后续接真实流式输出。',
           attachments: [],
           status: 'complete',
           metadata: {
@@ -228,6 +229,24 @@ function deleteConversation({ conversationId }: DeleteConversationInput) {
   writeStore(store)
 }
 
+function updateConversation({ conversationId, patch }: UpdateConversationInput) {
+  const store = cloneStore(readStore())
+  const conversation = store.conversations.find((item) => item.id === conversationId)
+
+  if (!conversation) {
+    throw new Error('Conversation not found')
+  }
+
+  Object.assign(conversation, patch, {
+    updated_at: patch.updated_at ?? now(),
+  })
+  store.conversations.sort((left, right) =>
+    right.updated_at.localeCompare(left.updated_at),
+  )
+  writeStore(store)
+  return conversation
+}
+
 function listMessages({ conversationId }: ListMessagesInput) {
   const store = readStore()
   return [...(store.messagesByConversation[conversationId] ?? [])]
@@ -318,6 +337,7 @@ const service: ChatService = {
   listConversations: async (input) => listConversations(input),
   createConversation: async (input) => createConversation(input),
   deleteConversation: async (input) => deleteConversation(input),
+  updateConversation: async (input) => updateConversation(input),
   listMessages: async (input) => listMessages(input),
   createUserMessage: async (input) => createUserMessage(input),
   createAssistantMessage: async (input) => createAssistantMessage(input),

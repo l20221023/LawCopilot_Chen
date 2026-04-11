@@ -21,27 +21,22 @@ export function ConversationSidebar({
   onCreateConversation,
   onDeleteConversation,
   onSelectConversation,
-  createLabel = 'New conversation',
-  description = 'Continue an existing workspace or start a new one.',
-  title = 'Conversations',
+  createLabel = '新建对话',
+  description = '历史会话',
+  title = '会话',
 }: ConversationSidebarProps) {
   return (
-    <aside className="section-card flex min-h-[640px] flex-col p-4 md:p-5">
-      <div className="space-y-4 border-b border-[color:var(--border)] pb-4">
-        <div className="space-y-2">
-          <span className="eyebrow">Chat</span>
-          <div>
-            <h2 className="text-2xl font-semibold tracking-tight text-[color:var(--text)]">
-              {title}
-            </h2>
-            <p className="mt-2 text-sm leading-6 muted-copy">{description}</p>
-          </div>
+    <aside className="flex min-h-[640px] flex-col rounded-[20px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-3">
+      <div className="space-y-3 border-b border-[color:var(--border)] pb-3">
+        <div>
+          <div className="text-sm font-semibold text-[color:var(--text)]">{title}</div>
+          <p className="mt-1 text-xs leading-5 muted-copy">{description}</p>
         </div>
 
         <button
           type="button"
           onClick={() => void onCreateConversation()}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[color:var(--accent)] px-4 py-3 text-sm font-medium text-white transition hover:bg-[color:var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-sm font-medium text-[color:var(--text)] transition hover:border-[color:var(--border-strong)] hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
           disabled={isBusy}
         >
           <Plus className="h-4 w-4" />
@@ -49,7 +44,7 @@ export function ConversationSidebar({
         </button>
       </div>
 
-      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-3 overflow-auto pr-1">
+      <div className="mt-3 flex min-h-0 flex-1 flex-col gap-2 overflow-auto pr-1">
         {conversations.length > 0 ? (
           conversations.map((conversation) => {
             const isActive = conversation.id === activeConversationId
@@ -58,10 +53,10 @@ export function ConversationSidebar({
               <article
                 key={conversation.id}
                 className={[
-                  'group rounded-[20px] border p-4 text-left transition',
+                  'group rounded-[18px] border px-3 py-3 transition',
                   isActive
-                    ? 'border-[color:var(--accent)] bg-[color:var(--accent-soft)]'
-                    : 'border-[color:var(--border)] bg-white/75 hover:border-[color:var(--border-strong)] hover:bg-white',
+                    ? 'border-[color:var(--border-strong)] bg-white'
+                    : 'border-transparent bg-transparent hover:border-[color:var(--border)] hover:bg-white/80',
                 ].join(' ')}
               >
                 <button
@@ -71,21 +66,21 @@ export function ConversationSidebar({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate font-medium text-[color:var(--text)]">
+                      <div className="truncate text-sm font-medium text-[color:var(--text)]">
                         {conversation.title}
                       </div>
-                      <p className="mt-2 max-h-12 overflow-hidden text-sm leading-6 muted-copy">
-                        {conversation.last_message_preview ?? 'No messages yet.'}
+                      <p className="mt-1 max-h-10 overflow-hidden text-xs leading-5 muted-copy">
+                        {conversation.last_message_preview ?? '暂无消息'}
                       </p>
                     </div>
-                    <span className="rounded-full border border-[color:var(--border)] bg-white/80 p-2 text-[color:var(--text-soft)]">
-                      <MessageSquareMore className="h-4 w-4" />
+                    <span className="rounded-full bg-[color:var(--surface-muted)] p-2 text-[color:var(--text-soft)]">
+                      <MessageSquareMore className="h-3.5 w-3.5" />
                     </span>
                   </div>
                 </button>
 
-                <div className="mt-4 flex items-center justify-between gap-2">
-                  <span className="mono-label text-[color:var(--text-soft)]">
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <span className="text-[11px] muted-copy">
                     {new Date(conversation.updated_at).toLocaleString('zh-CN', {
                       month: '2-digit',
                       day: '2-digit',
@@ -99,24 +94,19 @@ export function ConversationSidebar({
                       event.stopPropagation()
                       void onDeleteConversation(conversation.id)
                     }}
-                    className="inline-flex items-center gap-1 rounded-full border border-transparent px-3 py-1.5 text-sm text-[color:var(--text-soft)] transition hover:border-[color:var(--border)] hover:bg-white"
+                    className="inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs text-[color:var(--text-soft)] transition hover:bg-[color:var(--surface-muted)] hover:text-[color:var(--text)]"
                     disabled={isBusy}
                   >
-                    <Trash2 className="h-4 w-4" />
-                    Delete
+                    <Trash2 className="h-3.5 w-3.5" />
+                    删除
                   </button>
                 </div>
               </article>
             )
           })
         ) : (
-          <div className="rounded-[20px] border border-dashed border-[color:var(--border-strong)] bg-white/70 p-5">
-            <div className="text-base font-medium text-[color:var(--text)]">
-              No conversations yet.
-            </div>
-            <p className="mt-2 text-sm leading-6 muted-copy">
-              Start a new workspace from the button above.
-            </p>
+          <div className="rounded-[18px] border border-dashed border-[color:var(--border-strong)] bg-white/70 p-4 text-sm leading-6 muted-copy">
+            还没有历史会话。
           </div>
         )}
       </div>

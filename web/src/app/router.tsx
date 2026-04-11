@@ -21,9 +21,9 @@ function RouteLoadingScreen() {
         <div className="mono-label uppercase tracking-[0.18em] text-[color:var(--accent)]">
           LawCopilot
         </div>
-        <h1 className="page-title mt-3">Loading session</h1>
+        <h1 className="mt-3 page-title">正在恢复会话</h1>
         <p className="mt-3 text-sm leading-7 muted-copy">
-          Checking the current Supabase session and user profile.
+          正在检查当前 Supabase 会话与用户资料。
         </p>
       </div>
     </div>

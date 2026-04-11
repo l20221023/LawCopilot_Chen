@@ -1,21 +1,23 @@
-import { LoaderCircle, Paperclip, PauseCircle, SendHorizontal, Sparkles, X } from 'lucide-react'
+import {
+  LoaderCircle,
+  Paperclip,
+  PauseCircle,
+  SendHorizontal,
+  X,
+} from 'lucide-react'
 import type { ChangeEvent } from 'react'
 import { useId, useRef } from 'react'
 
 import type { ComposerAttachment } from '../../features/chat/chat-attachment-service'
 import { chatAttachmentAccept } from '../../features/chat/chat-attachment-service'
-import type { SubmittedComposerState } from '../../features/chat/use-chat-composer'
-import type { PreparedMessageAttachments } from '../../types/chat'
 import type { ChatStreamState } from '../../types/chat'
 import { ChatAttachmentList } from './chat-attachment-list'
 
 type ChatComposerProps = {
   attachments: ComposerAttachment[]
   attachmentErrorMessage: string | null
-  attachmentRequestPreview: PreparedMessageAttachments
   isAttaching: boolean
   isBusy: boolean
-  lastSubmittedRequest: SubmittedComposerState | null
   streamError: string | null
   streamPhase: ChatStreamState['phase']
   value: string
@@ -30,10 +32,8 @@ type ChatComposerProps = {
 export function ChatComposer({
   attachments,
   attachmentErrorMessage,
-  attachmentRequestPreview,
   isAttaching,
   isBusy,
-  lastSubmittedRequest,
   streamError,
   streamPhase,
   value,
@@ -64,124 +64,84 @@ export function ChatComposer({
   }
 
   return (
-    <section className="section-card p-4 md:p-5">
-      <div className="space-y-4 rounded-[22px] border border-[color:var(--border)] bg-white/85 p-3">
-        <div className="flex flex-wrap items-center gap-2 text-xs leading-5 muted-copy">
-          <span className="rounded-full border border-[color:var(--border)] bg-white/80 px-3 py-1">
-            支持 `image/*`
-          </span>
-          <span className="rounded-full border border-[color:var(--border)] bg-white/80 px-3 py-1">
-            支持 `application/pdf`
-          </span>
-          <span className="rounded-full border border-[color:var(--border)] bg-white/80 px-3 py-1">
-            支持 `text/plain`
-          </span>
-        </div>
+    <section className="border-t border-transparent bg-[color:var(--background-strong)]/96 pt-3 backdrop-blur">
+      <div className="mx-auto w-full max-w-3xl">
+        <div className="rounded-[24px] border border-[color:var(--border)] bg-white p-3 shadow-[0_12px_40px_rgba(15,23,42,0.08)]">
+          <ChatAttachmentList attachments={attachments} onRemove={onRemoveAttachment} />
 
-        <ChatAttachmentList
-          attachments={attachments}
-          onRemove={onRemoveAttachment}
-        />
+          <textarea
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            rows={4}
+            placeholder="请输入法律咨询问题，或上传合同、图片、TXT、PDF 后再发送。"
+            className="min-h-[108px] w-full resize-none border-0 bg-transparent px-2 py-2 text-[15px] leading-7 text-[color:var(--text)] outline-none placeholder:text-[color:var(--text-soft)]"
+          />
 
-        <textarea
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          rows={4}
-          placeholder="输入法律咨询问题、案件事实或合同审阅需求，也可以只上传附件。"
-          className="min-h-[112px] w-full resize-none border-0 bg-transparent text-sm leading-7 text-[color:var(--text)] outline-none placeholder:text-[color:var(--text-soft)]"
-        />
+          {(attachmentErrorMessage || streamError) && (
+            <div className="rounded-[16px] bg-[rgba(201,124,34,0.08)] px-4 py-3 text-sm leading-6 text-[color:var(--warning)]">
+              {attachmentErrorMessage ?? streamError}
+            </div>
+          )}
 
-        <div className="rounded-[18px] border border-[color:var(--border)] bg-[color:var(--background)] px-4 py-3 text-xs leading-6">
-          <p className="m-0 text-[color:var(--text)]">
-            当前已装配 {attachmentRequestPreview.attachments.length} 个附件，生成{' '}
-            {attachmentRequestPreview.content_parts.length} 个请求层 content parts。
-          </p>
-          <p className="m-0 muted-copy">
-            {lastSubmittedRequest
-              ? `最近一次发送草稿：${lastSubmittedRequest.request_attachments.attachments.length} 个附件。`
-              : '发送时会把 attachments 与 request preview 一起交给后续聊天请求层。'}
-          </p>
-          {attachmentErrorMessage ? (
-            <p className="m-0 text-[color:var(--warning)]">{attachmentErrorMessage}</p>
-          ) : null}
-          {streamError ? (
-            <p className="m-0 text-[color:var(--warning)]">{streamError}</p>
-          ) : null}
-        </div>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--border)] pt-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                id={inputId}
+                ref={fileInputRef}
+                type="file"
+                accept={chatAttachmentAccept}
+                multiple
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-[color:var(--text)] transition hover:bg-[color:var(--surface-muted)]"
+                disabled={isBusy}
+              >
+                {isAttaching ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Paperclip className="h-4 w-4" />
+                )}
+                添加附件
+              </button>
+              <label htmlFor={inputId} className="sr-only">
+                上传聊天附件
+              </label>
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--border)] pt-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              id={inputId}
-              ref={fileInputRef}
-              type="file"
-              accept={chatAttachmentAccept}
-              multiple
-              className="hidden"
-              onChange={handleFileChange}
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-white px-4 py-2.5 text-sm font-medium text-[color:var(--text)] transition hover:border-[color:var(--accent)] hover:text-[color:var(--accent-strong)]"
-              disabled={isBusy}
-            >
-              {isAttaching ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
-                <Paperclip className="h-4 w-4" />
-              )}
-              添加附件
-            </button>
-            <label htmlFor={inputId} className="sr-only">
-              上传聊天附件
-            </label>
-            <button
-              type="button"
-              onClick={onClearAttachments}
-              className="inline-flex items-center gap-2 rounded-full border border-transparent px-4 py-2.5 text-sm font-medium text-[color:var(--text-soft)] transition hover:border-[color:var(--border)] hover:bg-white"
-              disabled={isBusy || attachments.length === 0}
-            >
-              <X className="h-4 w-4" />
-              清空附件
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={onClearAttachments}
+                className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-[color:var(--text-soft)] transition hover:bg-[color:var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isBusy || attachments.length === 0}
+              >
+                <X className="h-4 w-4" />
+                清空附件
+              </button>
+            </div>
 
-          <p className="text-sm muted-copy">
-            已预留停止与流式状态挂点，附件将写入 `messages.attachments`。
-          </p>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void onStop()}
-              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-white px-4 py-2.5 text-sm font-medium text-[color:var(--text)] transition hover:border-[color:var(--border-strong)] disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={!isBusy}
-            >
-              <PauseCircle className="h-4 w-4" />
-              停止占位
-            </button>
-            <button
-              type="button"
-              onClick={() => void onSend()}
-              className="inline-flex items-center gap-2 rounded-full bg-[color:var(--text)] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[color:var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={sendDisabled}
-            >
-              <SendHorizontal className="h-4 w-4" />
-              {isProcessing ? '处理中' : '发送'}
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-start gap-3 rounded-[18px] border border-[color:var(--border)] bg-[color:var(--background)] px-4 py-3 text-xs leading-6">
-          <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--warning)]" />
-          <div className="space-y-1">
-            <p className="m-0 text-[color:var(--text)]">
-              TXT 会直接读取文本；PDF 提供前端适配口，当前先保留占位，不接第三方解析器。
-            </p>
-            <p className="m-0 muted-copy">
-              Session 6 可在发送前把 `attachmentRequestPreview.content_parts` 并入真实 AI 请求。
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void onStop()}
+                className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-white px-4 py-2.5 text-sm font-medium text-[color:var(--text)] transition hover:border-[color:var(--border-strong)] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={!isBusy}
+              >
+                <PauseCircle className="h-4 w-4" />
+                停止
+              </button>
+              <button
+                type="button"
+                onClick={() => void onSend()}
+                className="inline-flex items-center gap-2 rounded-full bg-[color:var(--text)] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[color:var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={sendDisabled}
+              >
+                <SendHorizontal className="h-4 w-4" />
+                {isProcessing ? '处理中' : '发送'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
