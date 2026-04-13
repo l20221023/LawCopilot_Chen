@@ -5,14 +5,29 @@ import {
   consumeCreditAfterSuccessForProfile,
 } from '../billing/billing-service'
 import { resolveSubscriptionExpiry } from '../billing/billing-rules'
+import { getScenarioById } from '../scenarios'
 import { recordUsageLog } from '../usage/usage-service'
 import {
   buildChatApiPayload,
+  type ChatApiPayload,
   streamChatCompletion,
 } from '../../lib/ai/openrouter-client'
+import {
+  DEFAULT_COST_DECISION_THRESHOLDS,
+  DEFAULT_ESTIMATED_OUTPUT_TOKENS,
+  DEFAULT_FIXED_CALL_PRICE_CONFIG,
+  DEFAULT_TOKEN_PRICE_CONFIG,
+} from '../../lib/ai/cost-config'
+import { decideCostStrategy } from '../../lib/ai/cost-strategy-engine'
+import { resolveSystemPromptCache } from '../../lib/ai/prompt-cache'
 import { prepareMessageAttachments } from '../../lib/ai/prepare-chat-attachments'
+import {
+  estimateRequestTokens,
+  estimateTextTokens,
+} from '../../lib/ai/token-estimator'
 import type { UserProfile, UserProfilePatch } from '../../types/auth'
 import type {
+  AIRequestDecisionContext,
   ChatMessage,
   ChatStateSnapshot,
   ChatStreamState,
@@ -23,6 +38,8 @@ import type {
 import { chatService } from './runtime-chat-service'
 
 const FALLBACK_MODEL_NAME = 'openrouter'
+const AI_REQUEST_DECISION_ERROR_PREFIX =
+  'Failed to prepare AI request decision context'
 const DEFAULT_CONVERSATION_TITLES = new Set(['New conversation', '新建会话', '新对话'])
 
 const initialStreamState: ChatStreamState = {
@@ -67,6 +84,7 @@ type UseChatControllerResult = {
 type StreamResult = {
   completed: boolean
   content: string
+  inputTokens: number
   modelName: string
   outputTokens: number
 }
@@ -83,17 +101,88 @@ function createEmptySnapshot(): ChatStateSnapshot {
   }
 }
 
-function estimateTokenCount(...segments: Array<string | null | undefined>) {
-  const totalLength = segments
-    .filter((segment): segment is string => Boolean(segment?.trim()))
-    .join('\n')
-    .trim().length
+function normalizeDecisionContext(
+  systemPromptHash: string,
+  decision: ReturnType<typeof decideCostStrategy>,
+): AIRequestDecisionContext {
+  return {
+    billing_strategy: decision.strategy,
+    estimated_input_tokens: decision.estimatedInputTokens,
+    estimated_output_tokens: decision.estimatedOutputTokens,
+    estimated_total_tokens: decision.estimatedTotalTokens,
+    estimated_token_cost: decision.estimatedTokenCost,
+    estimated_fixed_cost: decision.estimatedFixedCost,
+    cached_system_prompt: decision.systemPromptCached,
+    system_prompt_hash: systemPromptHash,
+  }
+}
 
-  if (totalLength <= 0) {
-    return 0
+function buildDecisionEstimationMessages(
+  requestMessages: ChatMessage[],
+  currentUserMessageId: string,
+  requestAttachments?: PreparedMessageAttachments,
+) {
+  if (!requestAttachments?.extracted_text.trim()) {
+    return requestMessages
   }
 
-  return Math.max(1, Math.ceil(totalLength / 4))
+  return requestMessages.map((message) =>
+    message.id === currentUserMessageId
+      ? {
+          ...message,
+          attachments: [],
+        }
+      : message,
+  )
+}
+
+function prepareAIRequestDecisionContext(params: {
+  currentUserMessageId: string
+  previousSystemPromptHash?: string | null
+  requestAttachments?: PreparedMessageAttachments
+  requestMessages: ChatMessage[]
+  scenarioId: string
+}) {
+  const scenario = getScenarioById(params.scenarioId)
+  const systemPrompt = scenario?.system_prompt?.trim()
+
+  if (!systemPrompt) {
+    throw new Error(`${AI_REQUEST_DECISION_ERROR_PREFIX}: scenario system prompt is missing.`)
+  }
+
+  try {
+    const promptCache = resolveSystemPromptCache({
+      systemPrompt,
+      previousHash: params.previousSystemPromptHash ?? null,
+    })
+    const estimate = estimateRequestTokens({
+      systemPrompt,
+      messages: buildDecisionEstimationMessages(
+        params.requestMessages,
+        params.currentUserMessageId,
+        params.requestAttachments,
+      ),
+      attachmentText: params.requestAttachments?.extracted_text,
+      includeSystemPrompt: !promptCache.cachedSystemPrompt,
+      estimatedOutputTokens: DEFAULT_ESTIMATED_OUTPUT_TOKENS,
+    })
+    const decision = decideCostStrategy({
+      estimatedInputTokens: estimate.inputTokens,
+      estimatedOutputTokens: estimate.estimatedOutputTokens,
+      estimatedSystemPromptTokens: estimate.systemPromptTokens,
+      systemPromptCached: promptCache.cachedSystemPrompt,
+      tokenPriceConfig: DEFAULT_TOKEN_PRICE_CONFIG,
+      fixedCallPriceConfig: DEFAULT_FIXED_CALL_PRICE_CONFIG,
+      thresholds: DEFAULT_COST_DECISION_THRESHOLDS,
+    })
+
+    return normalizeDecisionContext(promptCache.systemPromptHash, decision)
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Unknown AI request decision error.'
+
+    throw new Error(`${AI_REQUEST_DECISION_ERROR_PREFIX}: ${message}`)
+  }
 }
 
 function getBillingPatch(profile: UserProfile): UserProfilePatch {
@@ -149,6 +238,7 @@ export function useChatController({
   const copyTimerRef = useRef<number | null>(null)
   const streamOutcomeRef = useRef<'complete' | 'stopped'>('complete')
   const profileRef = useRef<UserProfile | null>(profile)
+  const systemPromptHashByConversationRef = useRef<Record<string, string>>({})
 
   const userId = profile?.id ?? null
 
@@ -171,6 +261,10 @@ export function useChatController({
   useEffect(() => {
     profileRef.current = profile
   }, [profile])
+
+  useEffect(() => {
+    systemPromptHashByConversationRef.current = {}
+  }, [userId])
 
   useEffect(() => {
     let disposed = false
@@ -447,8 +541,7 @@ export function useChatController({
   async function runAssistantStream(
     conversationId: string,
     assistantMessageId: string,
-    requestMessages: ChatMessage[],
-    requestScenarioId: string,
+    chatApiPayload: ChatApiPayload,
     regenerationOf?: string,
   ): Promise<StreamResult> {
     const startedAt = new Date().toISOString()
@@ -510,12 +603,7 @@ export function useChatController({
 
     try {
       const streamResult = await streamChatCompletion({
-        conversationId,
-        messages: buildChatApiPayload({
-          conversationId,
-          messages: requestMessages,
-          scenarioId: requestScenarioId,
-        }).messages,
+        payload: chatApiPayload,
         onEvent: ({ delta, modelName }) => {
           if (!delta) {
             return
@@ -570,7 +658,6 @@ export function useChatController({
             },
           }))
         },
-        scenarioId: requestScenarioId,
         signal: abortController.signal,
       })
 
@@ -626,10 +713,11 @@ export function useChatController({
       return {
         completed: true,
         content: streamResult.content,
+        inputTokens: streamResult.usage?.prompt_tokens ?? 0,
         modelName: resolvedModelName,
         outputTokens:
           streamResult.usage?.completion_tokens ??
-          estimateTokenCount(streamResult.content),
+          estimateTextTokens(streamResult.content),
       }
     } catch (error) {
       streamAbortControllerRef.current = null
@@ -641,8 +729,9 @@ export function useChatController({
         return {
           completed: false,
           content: currentContent,
+          inputTokens: 0,
           modelName: FALLBACK_MODEL_NAME,
-          outputTokens: estimateTokenCount(currentContent),
+          outputTokens: estimateTextTokens(currentContent),
         }
       }
 
@@ -738,9 +827,8 @@ export function useChatController({
     assistantMessageId: string
     conversationId: string
     conversationScenarioId: string
-    inputContent: string
+    decisionContext: AIRequestDecisionContext
     profileForCharge: UserProfile
-    requestAttachments?: PreparedMessageAttachments
     streamResult: StreamResult
     userMessageId: string
   }) {
@@ -748,9 +836,8 @@ export function useChatController({
       assistantMessageId,
       conversationId,
       conversationScenarioId,
-      inputContent,
+      decisionContext,
       profileForCharge,
-      requestAttachments,
       streamResult,
       userMessageId,
     } = params
@@ -762,7 +849,11 @@ export function useChatController({
       assistant_message_id: assistantMessageId,
       conversation_id: conversationId,
       credit_cost: creditCost,
-      input_tokens: estimateTokenCount(inputContent, requestAttachments?.extracted_text),
+      input_tokens:
+        streamResult.inputTokens > 0
+          ? streamResult.inputTokens
+          : decisionContext.estimated_input_tokens,
+      metadata: decisionContext,
       model_name: streamResult.modelName,
       output_tokens: streamResult.outputTokens,
       scenario_id: conversationScenarioId,
@@ -879,12 +970,29 @@ export function useChatController({
         ...(snapshot.messagesByConversation[conversationId] ?? []),
         userMessage,
       ]
+      const decisionContext = prepareAIRequestDecisionContext({
+        currentUserMessageId: userMessage.id,
+        previousSystemPromptHash:
+          systemPromptHashByConversationRef.current[conversationId] ?? null,
+        requestAttachments,
+        requestMessages,
+        scenarioId: conversationScenarioId,
+      })
+      const chatApiPayload = buildChatApiPayload({
+        conversationId,
+        decisionContext,
+        messages: requestMessages,
+        scenarioId: conversationScenarioId,
+      })
+
+      systemPromptHashByConversationRef.current[conversationId] =
+        decisionContext.system_prompt_hash
+
       const assistantDraft = await createAssistantDraft(conversationId, userMessage.id)
       const streamResult = await runAssistantStream(
         conversationId,
         assistantDraft.id,
-        requestMessages,
-        conversationScenarioId,
+        chatApiPayload,
       )
 
       if (!streamResult.completed) {
@@ -895,9 +1003,8 @@ export function useChatController({
         assistantMessageId: assistantDraft.id,
         conversationId,
         conversationScenarioId,
-        inputContent: content,
+        decisionContext,
         profileForCharge: quotaCheck.profile,
-        requestAttachments,
         streamResult,
         userMessageId: userMessage.id,
       })
@@ -1046,19 +1153,37 @@ export function useChatController({
     }
 
     try {
+      const conversationScenarioId = activeConversation?.scenario_id ?? scenarioId
+      const requestMessages = conversationMessages
+        .slice(0, assistantIndex)
+        .filter((message) => message.role === 'user' || message.role === 'assistant')
+      const decisionContext = prepareAIRequestDecisionContext({
+        currentUserMessageId: userMessage.id,
+        previousSystemPromptHash:
+          systemPromptHashByConversationRef.current[conversationId] ?? null,
+        requestAttachments,
+        requestMessages,
+        scenarioId: conversationScenarioId,
+      })
+      const chatApiPayload = buildChatApiPayload({
+        conversationId,
+        decisionContext,
+        messages: requestMessages,
+        scenarioId: conversationScenarioId,
+      })
+
+      systemPromptHashByConversationRef.current[conversationId] =
+        decisionContext.system_prompt_hash
+
       const assistantDraft = await createAssistantDraft(
         conversationId,
         userMessage.id,
         messageId,
       )
-      const requestMessages = conversationMessages
-        .slice(0, assistantIndex)
-        .filter((message) => message.role === 'user' || message.role === 'assistant')
       const streamResult = await runAssistantStream(
         conversationId,
         assistantDraft.id,
-        requestMessages,
-        activeConversation?.scenario_id ?? scenarioId,
+        chatApiPayload,
         messageId,
       )
 
@@ -1069,10 +1194,9 @@ export function useChatController({
       await finalizeSuccessfulGeneration({
         assistantMessageId: assistantDraft.id,
         conversationId,
-        conversationScenarioId: activeConversation?.scenario_id ?? scenarioId,
-        inputContent: userMessage.content,
+        conversationScenarioId,
+        decisionContext,
         profileForCharge: quotaCheck.profile,
-        requestAttachments,
         streamResult,
         userMessageId: userMessage.id,
       })

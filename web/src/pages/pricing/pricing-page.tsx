@@ -95,7 +95,7 @@ export function PricingPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col gap-5 overflow-y-auto pb-4 pr-1">
       <header className="space-y-3">
         <span className="eyebrow">升级套餐</span>
         <h1 className="page-title">选择适合你的使用方案</h1>
@@ -104,7 +104,7 @@ export function PricingPage() {
         </p>
       </header>
 
-      <BillingStatusCard overview={overview} title="当前额度" />
+      <BillingStatusCard overview={overview} title="当前额度" compact />
 
       <div className="grid gap-4 xl:grid-cols-3">
         {pricingPlans.map((plan) => (

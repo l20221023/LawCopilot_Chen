@@ -1,5 +1,15 @@
 const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
 const DEFAULT_MAX_COMPLETION_TOKENS = 2048
+const AI_DECISION_CONTEXT_FIELDS = [
+  'billing_strategy',
+  'estimated_input_tokens',
+  'estimated_output_tokens',
+  'estimated_total_tokens',
+  'estimated_token_cost',
+  'estimated_fixed_cost',
+  'cached_system_prompt',
+  'system_prompt_hash',
+]
 
 function sendJson(response, statusCode, payload) {
   response.statusCode = statusCode
@@ -31,6 +41,77 @@ function getRequestBody(request) {
   }
 
   return null
+}
+
+function hasAIRequestDecisionContext(payload) {
+  return AI_DECISION_CONTEXT_FIELDS.some((field) => field in payload)
+}
+
+function parseNonNegativeNumber(value) {
+  if (!Number.isFinite(value) || value < 0) {
+    return null
+  }
+
+  return Number(value)
+}
+
+function extractAIRequestDecisionContext(payload) {
+  if (!hasAIRequestDecisionContext(payload)) {
+    return null
+  }
+
+  const billingStrategy = payload.billing_strategy
+  const estimatedInputTokens = parseNonNegativeNumber(payload.estimated_input_tokens)
+  const estimatedOutputTokens = parseNonNegativeNumber(payload.estimated_output_tokens)
+  const estimatedTotalTokens = parseNonNegativeNumber(payload.estimated_total_tokens)
+  const estimatedTokenCost = parseNonNegativeNumber(payload.estimated_token_cost)
+  const estimatedFixedCost = parseNonNegativeNumber(payload.estimated_fixed_cost)
+  const cachedSystemPrompt = payload.cached_system_prompt
+  const systemPromptHash = payload.system_prompt_hash
+
+  if (
+    typeof billingStrategy !== 'string' ||
+    estimatedInputTokens === null ||
+    estimatedOutputTokens === null ||
+    estimatedTotalTokens === null ||
+    estimatedTokenCost === null ||
+    estimatedFixedCost === null ||
+    typeof cachedSystemPrompt !== 'boolean' ||
+    typeof systemPromptHash !== 'string' ||
+    !systemPromptHash.trim()
+  ) {
+    throw new Error('Invalid AI request decision context.')
+  }
+
+  return {
+    billing_strategy: billingStrategy,
+    estimated_input_tokens: estimatedInputTokens,
+    estimated_output_tokens: estimatedOutputTokens,
+    estimated_total_tokens: estimatedTotalTokens,
+    estimated_token_cost: estimatedTokenCost,
+    estimated_fixed_cost: estimatedFixedCost,
+    cached_system_prompt: cachedSystemPrompt,
+    system_prompt_hash: systemPromptHash.trim(),
+  }
+}
+
+function resolveUpstreamChatRequest(params) {
+  const { decisionContext, maxCompletionTokens, messages, model } = params
+
+  // Keep the provider-selection boundary here so future sessions can route by strategy.
+  return {
+    decisionContext,
+    endpoint: OPENROUTER_ENDPOINT,
+    payload: {
+      model,
+      messages,
+      stream: true,
+      max_completion_tokens: maxCompletionTokens,
+      stream_options: {
+        include_usage: true,
+      },
+    },
+  }
 }
 
 export default async function handler(request, response) {
@@ -74,10 +155,31 @@ export default async function handler(request, response) {
     return
   }
 
+  let decisionContext
+
+  try {
+    decisionContext = extractAIRequestDecisionContext(payload)
+  } catch (error) {
+    sendJson(response, 400, {
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Invalid AI request decision context.',
+    })
+    return
+  }
+
+  const upstreamRequest = resolveUpstreamChatRequest({
+    decisionContext,
+    maxCompletionTokens,
+    messages: payload.messages,
+    model,
+  })
+
   let upstreamResponse
 
   try {
-    upstreamResponse = await fetch(OPENROUTER_ENDPOINT, {
+    upstreamResponse = await fetch(upstreamRequest.endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -89,15 +191,7 @@ export default async function handler(request, response) {
           ? { 'X-Title': process.env.OPENROUTER_APP_NAME }
           : {}),
       },
-      body: JSON.stringify({
-        model,
-        messages: payload.messages,
-        stream: true,
-        max_completion_tokens: maxCompletionTokens,
-        stream_options: {
-          include_usage: true,
-        },
-      }),
+      body: JSON.stringify(upstreamRequest.payload),
     })
   } catch (error) {
     sendJson(response, 502, {

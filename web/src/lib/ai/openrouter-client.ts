@@ -1,6 +1,9 @@
 import { prepareMessageAttachments } from './prepare-chat-attachments'
 import { getScenarioById } from '../../features/scenarios'
-import type { ChatMessage } from '../../types/chat'
+import type {
+  AIRequestDecisionContext,
+  ChatMessage,
+} from '../../types/chat'
 
 type OpenRouterMessageContentPart =
   | {
@@ -19,7 +22,7 @@ type OpenRouterMessage = {
   content: string | OpenRouterMessageContentPart[]
 }
 
-type ChatApiPayload = {
+export type ChatApiPayload = AIRequestDecisionContext & {
   conversationId: string
   messages: OpenRouterMessage[]
   scenarioId: string
@@ -37,10 +40,8 @@ type ChatStreamEvent = {
 }
 
 type StreamChatCompletionOptions = {
-  conversationId: string
-  messages: OpenRouterMessage[]
+  payload: ChatApiPayload
   onEvent: (event: ChatStreamEvent) => void
-  scenarioId: string
   signal?: AbortSignal
 }
 
@@ -98,6 +99,7 @@ function buildAssistantContent(message: ChatMessage) {
 
 export function buildChatApiPayload(params: {
   conversationId: string
+  decisionContext: AIRequestDecisionContext
   messages: ChatMessage[]
   scenarioId: string
 }): ChatApiPayload {
@@ -132,6 +134,7 @@ export function buildChatApiPayload(params: {
 
   return {
     conversationId: params.conversationId,
+    ...params.decisionContext,
     messages: chatMessages,
     scenarioId: params.scenarioId,
   }
@@ -208,10 +211,8 @@ function getErrorMessage(payload: unknown) {
 }
 
 export async function streamChatCompletion({
-  conversationId,
-  messages,
+  payload,
   onEvent,
-  scenarioId,
   signal,
 }: StreamChatCompletionOptions): Promise<StreamChatCompletionResult> {
   const response = await fetch('/api/chat', {
@@ -219,11 +220,7 @@ export async function streamChatCompletion({
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      conversationId,
-      messages,
-      scenarioId,
-    } satisfies ChatApiPayload),
+    body: JSON.stringify(payload satisfies ChatApiPayload),
     signal,
   })
 

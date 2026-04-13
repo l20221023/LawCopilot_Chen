@@ -1,5 +1,7 @@
 import type {
+  UsageDecisionFields,
   UsageLog,
+  UsageLogMetadata,
   UsageLogSummary,
   UsageRecordInput,
 } from '../../types/usage'
@@ -24,6 +26,63 @@ function emitUsageChange() {
   listeners.forEach((listener) => listener())
 }
 
+function normalizeUsageDecisionFields(input: {
+  billing_strategy?: UsageLog['billing_strategy']
+  estimated_input_tokens?: UsageLog['estimated_input_tokens']
+  estimated_output_tokens?: UsageLog['estimated_output_tokens']
+  estimated_total_tokens?: UsageLog['estimated_total_tokens']
+  estimated_token_cost?: UsageLog['estimated_token_cost']
+  estimated_fixed_cost?: UsageLog['estimated_fixed_cost']
+  cached_system_prompt?: UsageLog['cached_system_prompt']
+  system_prompt_hash?: UsageLog['system_prompt_hash']
+  metadata?: UsageLogMetadata | null
+}): UsageDecisionFields {
+  const metadata = input.metadata ?? null
+
+  return {
+    billing_strategy: input.billing_strategy ?? metadata?.billing_strategy ?? null,
+    estimated_input_tokens:
+      input.estimated_input_tokens ?? metadata?.estimated_input_tokens ?? null,
+    estimated_output_tokens:
+      input.estimated_output_tokens ?? metadata?.estimated_output_tokens ?? null,
+    estimated_total_tokens:
+      input.estimated_total_tokens ?? metadata?.estimated_total_tokens ?? null,
+    estimated_token_cost:
+      input.estimated_token_cost ?? metadata?.estimated_token_cost ?? null,
+    estimated_fixed_cost:
+      input.estimated_fixed_cost ?? metadata?.estimated_fixed_cost ?? null,
+    cached_system_prompt:
+      input.cached_system_prompt ?? metadata?.cached_system_prompt ?? null,
+    system_prompt_hash: input.system_prompt_hash ?? metadata?.system_prompt_hash ?? null,
+  }
+}
+
+function buildUsageMetadata(
+  decisionFields: UsageDecisionFields,
+  metadata?: UsageLogMetadata | null,
+) {
+  const resolvedMetadata: UsageLogMetadata = {
+    ...metadata,
+    ...decisionFields,
+  }
+
+  return Object.values(resolvedMetadata).some(
+    (value) => value !== null && value !== undefined,
+  )
+    ? resolvedMetadata
+    : null
+}
+
+function normalizeStoredUsageLog(log: UsageLog) {
+  const decisionFields = normalizeUsageDecisionFields(log)
+
+  return {
+    ...log,
+    ...decisionFields,
+    metadata: buildUsageMetadata(decisionFields, log.metadata ?? null),
+  }
+}
+
 function readStoredUsageLogs() {
   if (typeof window === 'undefined') {
     return [] as UsageLog[]
@@ -36,7 +95,9 @@ function readStoredUsageLogs() {
   }
 
   try {
-    return JSON.parse(rawValue) as UsageLog[]
+    return (JSON.parse(rawValue) as UsageLog[]).map((log) =>
+      normalizeStoredUsageLog(log),
+    )
   } catch {
     return []
   }
@@ -84,16 +145,26 @@ export async function recordUsageLog(input: UsageRecordInput) {
     return log
   }
 
+  const decisionFields = normalizeUsageDecisionFields(input)
   const log: UsageLog = {
     assistant_message_id: input.assistant_message_id ?? null,
+    billing_strategy: decisionFields.billing_strategy,
+    cached_system_prompt: decisionFields.cached_system_prompt,
     conversation_id: input.conversation_id,
     created_at: new Date().toISOString(),
     credit_cost: input.credit_cost,
+    estimated_fixed_cost: decisionFields.estimated_fixed_cost,
+    estimated_input_tokens: decisionFields.estimated_input_tokens,
+    estimated_output_tokens: decisionFields.estimated_output_tokens,
+    estimated_token_cost: decisionFields.estimated_token_cost,
+    estimated_total_tokens: decisionFields.estimated_total_tokens,
     id: crypto.randomUUID(),
     input_tokens: input.input_tokens,
+    metadata: buildUsageMetadata(decisionFields, input.metadata ?? null),
     model_name: input.model_name,
     output_tokens: input.output_tokens,
     scenario_id: input.scenario_id,
+    system_prompt_hash: decisionFields.system_prompt_hash,
     total_tokens: input.input_tokens + input.output_tokens,
     user_id: input.user_id,
     user_message_id: input.user_message_id,

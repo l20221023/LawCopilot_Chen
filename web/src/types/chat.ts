@@ -1,3 +1,5 @@
+import type { BillingStrategy } from '../lib/ai/cost-config'
+
 export const attachmentTypes = ['image', 'pdf', 'txt'] as const
 
 export type AttachmentType = (typeof attachmentTypes)[number]
@@ -52,6 +54,17 @@ export type PreparedMessageAttachments = {
   attachments: MessageAttachment[]
   content_parts: ChatAttachmentRequestPart[]
   extracted_text: string
+}
+
+export type AIRequestDecisionContext = {
+  billing_strategy: BillingStrategy
+  estimated_input_tokens: number
+  estimated_output_tokens: number
+  estimated_total_tokens: number
+  estimated_token_cost: number
+  estimated_fixed_cost: number
+  cached_system_prompt: boolean
+  system_prompt_hash: string
 }
 
 export type Conversation = {
